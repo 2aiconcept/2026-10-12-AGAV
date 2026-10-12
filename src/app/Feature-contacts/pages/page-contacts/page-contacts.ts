@@ -6,4 +6,4 @@ import { Component } from '@angular/core';
   styleUrl: './page-contacts.css',
   templateUrl: './page-contacts.html',
 })
-export class PageContacts {}
+export default class PageContacts {}

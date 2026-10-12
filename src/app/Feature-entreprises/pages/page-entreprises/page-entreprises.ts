@@ -6,4 +6,4 @@ import { Component } from '@angular/core';
   styleUrl: './page-entreprises.css',
   templateUrl: './page-entreprises.html',
 })
-export class PageEntreprises {}
+export default class PageEntreprises {}

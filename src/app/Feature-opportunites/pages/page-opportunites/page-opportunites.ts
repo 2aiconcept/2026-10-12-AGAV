@@ -6,4 +6,4 @@ import { Component } from '@angular/core';
   styleUrl: './page-opportunites.css',
   templateUrl: './page-opportunites.html',
 })
-export class PageOpportunites {}
+export default class PageOpportunites {}
