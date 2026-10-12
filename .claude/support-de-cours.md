@@ -170,3 +170,46 @@ export default contactsRoutes;
 **Docs officielles** :
 - [Titre de page](https://angular.dev/guide/routing/define-routes#page-titles)
 - [WCAG 2.4.2 Page Titled](https://www.w3.org/WAI/WCAG22/Understanding/page-titled.html)
+
+### 2.3 Naviguer avec `routerLink` et `routerLinkActive`
+
+**En bref** : `routerLink` navigue sans recharger la page, `routerLinkActive` met en évidence le lien de la page courante.
+
+**Explication** : un `<a href>` classique recharge toute l'application. `routerLink` garde un vrai `<a>` avec un `href` (clic droit, nouvel onglet et clavier fonctionnent), mais la navigation passe par le router. Les deux directives s'importent dans le composant (`imports: [RouterLink, RouterLinkActive]`) : le composant reste dumb, car il n'injecte pas le `Router`. `routerLinkActive="active"` ajoute la classe Bootstrap `active` au lien courant. Le piège : ce surlignage ne se voit pas avec un lecteur d'écran et passe par la couleur seule. On ajoute donc `ariaCurrentWhenActive="page"`, qui pose `aria-current="page"` sur le lien actif. Bonne pratique : entourer les liens d'un `<nav>` nommé avec `aria-label`, et utiliser `<a routerLink>` pour naviguer, jamais un `<button>` avec `router.navigate()`.
+
+**Dans notre appli** (`src/app/shared/nav/nav.html`) :
+
+```html
+<nav aria-label="Navigation principale">
+  <ul class="nav nav-pills gap-2">
+    <li class="nav-item">
+      <a
+        class="nav-link"
+        routerLink="/entreprises"
+        routerLinkActive="active"
+        ariaCurrentWhenActive="page"
+        >Entreprises</a
+      >
+    </li>
+    <!-- Contacts, Opportunités -->
+  </ul>
+</nav>
+```
+
+Pour le tester, on fournit de vraies routes avec `provideRouter()`, on navigue, puis on vérifie l'attribut `aria-current` (`src/app/shared/nav/nav.spec.ts`) :
+
+```ts
+it('signale le lien de la page courante avec aria-current', async () => {
+  await TestBed.inject(Router).navigateByUrl('/contacts');
+  await fixture.whenStable();
+
+  expect(lien('Contacts')?.getAttribute('aria-current')).toBe('page');
+  expect(lien('Entreprises')?.hasAttribute('aria-current')).toBe(false);
+});
+```
+
+**Docs officielles** :
+- [Naviguer vers une route : `routerLink`](https://angular.dev/guide/routing/navigate-to-routes)
+- [RouterLinkActive (API)](https://angular.dev/api/router/RouterLinkActive)
+- [Bootstrap : Navs](https://getbootstrap.com/docs/5.3/components/navs-tabs/)
+- [MDN : aria-current](https://developer.mozilla.org/fr/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-current)

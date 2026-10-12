@@ -27,12 +27,14 @@ src/app/
 
 Un élément utilisé par une seule feature reste dans cette feature. Il passe dans `shared/` dès qu'une deuxième feature en a besoin.
 
+**Écart actuel avec cette cible** : les dossiers du code s'appellent `Feature-<feature>/` (au lieu de `<feature>/`), `pages/` (au lieu de `smart-components/`) et `ui/` (au lieu de `dump-components/`). `Feature-not-found/` existe en plus des quatre features. Il n'y a pas encore de dossier `layout/` : `header`, `nav`, `layout-pages` et `layout-slice` sont dans `shared/`.
+
 ### 1.2 Démarrage de l'application
 
 - `src/main.ts` : `bootstrapApplication(App, appConfig)`, sans NgModule.
 - `src/app/app.config.ts` : providers globaux (`provideRouter`, `provideBrowserGlobalErrorListeners`). Aucun service de feature n'y est fourni.
 - `src/app/app.ts` : composant racine `App`, affiche `<router-outlet>`.
-- Styles : Bootstrap (CSS) + `src/styles.css`.
+- Styles : `src/styles.css` (vide). Bootstrap est installé mais pas encore importé dans `angular.json`.
 
 ## 2. Routes
 
@@ -63,29 +65,97 @@ Modèle de fiche, à recopier pour chaque élément :
 - **Utilisé par** : composants ou routes qui s'en servent.
 -->
 
+Sauf mention contraire (voir `Nav`), les composants ci-dessous sont des squelettes générés par le CLI : template `<p>… works!</p>`, sans input, output ni logique. Les fiches seront complétées quand ils auront un comportement.
+
 ### 3.1 auth
 
-_Rien pour l'instant._
+#### PageAuth (`Feature-auth/pages/page-auth/page-auth.ts`)
+- **Type** : smart
+- **Rôle** : page de connexion.
+- **Utilisé par** : route `''`.
+
+#### FormAuth (`Feature-auth/ui/form-auth/form-auth.ts`)
+- **Type** : dumb
+- **Rôle** : formulaire de connexion (à venir).
+- **Utilisé par** : personne pour l'instant.
+
+#### AuthService (`Feature-auth/data-access/auth-service.ts`)
+- **Type** : service (`@Service()`)
+- **Rôle** : connexion à l'API (à venir). Classe vide pour l'instant.
+- **Utilisé par** : personne pour l'instant.
 
 ### 3.2 entreprises
 
-_Rien pour l'instant._
+#### PageEntreprises (`Feature-entreprises/pages/page-entreprises/page-entreprises.ts`)
+- **Type** : smart
+- **Rôle** : liste des entreprises.
+- **Utilisé par** : route `entreprises`.
 
 ### 3.3 contacts
 
-_Rien pour l'instant._
+Routes de la feature : `Feature-contacts/contacts.routes.ts` (voir section 2).
+
+#### PageContacts (`Feature-contacts/pages/page-contacts/page-contacts.ts`)
+- **Type** : smart
+- **Rôle** : liste des contacts.
+- **Utilisé par** : route `contacts`.
+
+#### PageAjouterContact (`Feature-contacts/pages/page-ajouter-contact/page-ajouter-contact.ts`)
+- **Type** : smart
+- **Rôle** : création d'un contact.
+- **Utilisé par** : route `contacts/ajouter`.
+
+#### PageEditerContact (`Feature-contacts/pages/page-editer-contact/page-editer-contact.ts`)
+- **Type** : smart
+- **Rôle** : modification d'un contact.
+- **Entrées** : paramètre de route `:id` (pas encore lu).
+- **Utilisé par** : route `contacts/editer/:id`.
+
+#### FormContact (`Feature-contacts/ui/form-contact/form-contact.ts`)
+- **Type** : dumb
+- **Rôle** : formulaire de contact, prévu pour la création et la modification (à venir).
+- **Utilisé par** : personne pour l'instant.
 
 ### 3.4 opportunites
 
-_Rien pour l'instant._
+#### PageOpportunites (`Feature-opportunites/pages/page-opportunites/page-opportunites.ts`)
+- **Type** : smart
+- **Rôle** : liste des opportunités.
+- **Utilisé par** : route `opportunites`.
+
+### 3.5 not-found
+
+#### PageNotFound (`Feature-not-found/pages/page-not-found/page-not-found.ts`)
+- **Type** : smart
+- **Rôle** : page affichée pour une URL inconnue.
+- **Utilisé par** : route `**`.
 
 ## 4. Shared
 
-_Rien pour l'instant._
+#### Header (`shared/header/header.ts`)
+- **Type** : dumb
+- **Rôle** : en-tête de l'application (à venir).
+- **Utilisé par** : personne pour l'instant.
+
+#### Nav (`shared/nav/nav.ts`)
+- **Type** : dumb (n'injecte rien : utilise seulement les directives `RouterLink` et `RouterLinkActive` dans le template)
+- **Rôle** : navigation principale (`<nav aria-label="Navigation principale">`), avec des liens vers `/entreprises`, `/contacts` et `/opportunites` (pills Bootstrap). Le lien de la page courante reçoit la classe `active` et `aria-current="page"`.
+- **Entrées / sorties** : aucune.
+- **Utilisé par** : personne pour l'instant (à placer dans le header ou la mise en page commune).
+
+#### LayoutPages (`shared/layout-pages/layout-pages.ts`)
+- **Type** : dumb
+- **Rôle** : mise en page commune des pages (à venir).
+- **Utilisé par** : personne pour l'instant.
+
+#### LayoutSlice (`shared/layout-slice/layout-slice.ts`)
+- **Type** : dumb
+- **Rôle** : à préciser.
+- **Utilisé par** : personne pour l'instant.
 
 ## 5. Layout
 
-_Rien pour l'instant._
+_Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 
 ## 6. État d'avancement
 
@@ -95,12 +165,17 @@ _Rien pour l'instant._
 
 - Projet généré avec Angular CLI 22 (standalone, zoneless).
 - Bootstrap 5.3 ajouté aux dépendances npm.
-- Routes de toutes les features en lazy loading, avec un `title` par page (pages encore vides).
+- `app.html` réduit à `<router-outlet>`.
+- Routes de toutes les features en lazy loading, avec un `title` par page.
+- Squelettes générés : pages, `FormAuth`, `FormContact`, `AuthService`, composants de `shared/`.
+- `Nav` : navigation principale avec `routerLink` / `routerLinkActive` et ses tests.
 
 ### À faire
 
 - Importer le CSS de Bootstrap dans `angular.json` (tableau `styles`).
-- Remplacer le template par défaut de `app.html`.
+- Afficher `Nav` (dans le header ou la mise en page commune).
+- Corriger `app.spec.ts`, qui cherche encore le `<h1>` du template par défaut.
+- Aligner les dossiers sur l'architecture cible (voir l'écart en 1.1).
 - Installer et configurer Playwright (dossier `e2e/`, scripts `npm run e2e*`).
 - Créer `.claude/endpoints-et-donnees.md`.
 - Features : `auth`, `entreprises`, `contacts`, `opportunites`.
