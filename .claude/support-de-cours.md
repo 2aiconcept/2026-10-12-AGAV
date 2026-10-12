@@ -25,6 +25,7 @@ Modèle de notion, à recopier :
 
 1. [Démarrer une application Angular 22](#1-démarrer-une-application-angular-22)
 2. [Le routing](#2-le-routing)
+3. [Les composants](#3-les-composants)
 
 ## 1. Démarrer une application Angular 22
 
@@ -70,12 +71,18 @@ export const appConfig: ApplicationConfig = {
 
 **En bref** : on utilise les classes utilitaires de Bootstrap dans les templates pour écrire le moins de CSS possible.
 
-**Explication** : Bootstrap est installé avec npm et son CSS précompilé est ajouté une seule fois dans le tableau `styles` de `angular.json`. On ne le réimporte jamais dans un composant, sinon tout son CSS serait dupliqué.
+**Explication** : Bootstrap est installé avec npm, puis son CSS précompilé est chargé **une seule fois**, dans la feuille de styles globale. Deux façons équivalentes existent : l'ajouter au tableau `styles` de `angular.json`, ou faire un `@import` en haut de `src/styles.css`. Nous avons choisi l'`@import`. Le chemin `bootstrap/dist/...` est résolu dans `node_modules` par le builder. Le piège : réimporter Bootstrap dans le `.css` d'un composant. Tout son CSS (plus de 200 kB) serait alors copié dans ce composant. On vérifie le résultat avec `npm run build` : le bundle `styles` passe de 0 à environ 230 kB.
 
 **Dans notre appli** (`package.json`) :
 
 ```json
 "bootstrap": "^5.3.8"
+```
+
+(`src/styles.css`) :
+
+```css
+@import 'bootstrap/dist/css/bootstrap.min.css';
 ```
 
 **Docs officielles** :
@@ -213,3 +220,73 @@ it('signale le lien de la page courante avec aria-current', async () => {
 - [RouterLinkActive (API)](https://angular.dev/api/router/RouterLinkActive)
 - [Bootstrap : Navs](https://getbootstrap.com/docs/5.3/components/navs-tabs/)
 - [MDN : aria-current](https://developer.mozilla.org/fr/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-current)
+
+## 3. Les composants
+
+### 3.1 Projeter du contenu avec `ng-content` et `select`
+
+**En bref** : `<ng-content>` affiche, à l'intérieur d'un composant, le HTML que la page a écrit entre ses balises. Avec `select`, on crée plusieurs emplacements (slots).
+
+**Explication** : un composant de mise en page ne connaît pas son contenu : il fournit le cadre, la page fournit ce qu'on met dedans. Plutôt que de passer du texte par des `input()`, on projette directement du HTML. `select="[slotStart]"` ne prend que les éléments qui portent l'attribut `slotStart`. On peut sélectionner aussi par balise ou par classe, mais un attribut dédié est le plus explicite. Le piège : un élément qui ne correspond à aucun `select` (et sans `<ng-content>` par défaut) n'est pas affiché du tout. Autre point : le contenu projeté appartient à la page, pas au composant. Ses liaisons et son style viennent donc de la page.
+
+**Dans notre appli** (`src/app/shared/layout-slice/layout-slice.html`) :
+
+```html
+<div class="container-fluid">
+  <div class="row min-vh-100">
+    <div class="col-md-6 d-flex flex-column bg-dark text-white p-4 p-lg-5">
+      <ng-content select="[slotStart]" />
+    </div>
+    <div
+      class="col-md-6 d-flex align-items-center justify-content-center bg-body-tertiary p-4 p-lg-5"
+    >
+      <ng-content select="[slotEnd]" />
+    </div>
+  </div>
+</div>
+```
+
+Utilisation dans une page :
+
+```html
+<app-layout-slice>
+  <div slotStart>…présentation…</div>
+  <div slotEnd>…formulaire…</div>
+</app-layout-slice>
+```
+
+Pour tester un composant qui projette du contenu, on crée un petit composant hôte dans le spec (`src/app/shared/layout-slice/layout-slice.spec.ts`) :
+
+```ts
+@Component({
+  imports: [LayoutSlice],
+  template: `
+    <app-layout-slice>
+      <p slotStart>Contenu de gauche</p>
+      <p slotEnd>Contenu de droite</p>
+      <p>Contenu sans slot</p>
+    </app-layout-slice>
+  `,
+})
+class PageHote {}
+```
+
+Le même principe sert pour une mise en page en haut / bas. On garde les **mêmes attributs de slot**, et une page peut passer d'une mise en page à l'autre en changeant seulement la balise. Piège Bootstrap : `h-50` vaut 50 % de la hauteur **du parent**. Il faut donc que le parent ait une hauteur fixe (`vh-100`), sinon `h-50` n'a aucun effet. Avec `overflow-auto`, un bloc défile s'il a trop de contenu (`src/app/shared/layout-top-bottom/layout-top-bottom.html`) :
+
+```html
+<div class="d-flex flex-column vh-100">
+  <div class="h-50 overflow-auto d-flex flex-column bg-dark text-white p-4 p-lg-5">
+    <ng-content select="[slotStart]" />
+  </div>
+  <div
+    class="h-50 overflow-auto d-flex align-items-center justify-content-center bg-body-tertiary p-4 p-lg-5"
+  >
+    <ng-content select="[slotEnd]" />
+  </div>
+</div>
+```
+
+**Docs officielles** :
+- [Projection de contenu avec ng-content](https://angular.dev/guide/components/content-projection)
+- [Bootstrap : grille](https://getbootstrap.com/docs/5.3/layout/grid/)
+- [Bootstrap : tailles (`h-50`, `vh-100`)](https://getbootstrap.com/docs/5.3/utilities/sizing/)

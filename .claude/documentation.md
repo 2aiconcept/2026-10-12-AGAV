@@ -27,14 +27,14 @@ src/app/
 
 Un élément utilisé par une seule feature reste dans cette feature. Il passe dans `shared/` dès qu'une deuxième feature en a besoin.
 
-**Écart actuel avec cette cible** : les dossiers du code s'appellent `Feature-<feature>/` (au lieu de `<feature>/`), `pages/` (au lieu de `smart-components/`) et `ui/` (au lieu de `dump-components/`). `Feature-not-found/` existe en plus des quatre features. Il n'y a pas encore de dossier `layout/` : `header`, `nav`, `layout-pages` et `layout-slice` sont dans `shared/`.
+**Écart actuel avec cette cible** : les dossiers du code s'appellent `Feature-<feature>/` (au lieu de `<feature>/`), `pages/` (au lieu de `smart-components/`) et `ui/` (au lieu de `dump-components/`). `Feature-not-found/` existe en plus des quatre features. Il n'y a pas encore de dossier `layout/` : `header`, `nav`, `layout-pages`, `layout-slice` et `layout-top-bottom` sont dans `shared/`.
 
 ### 1.2 Démarrage de l'application
 
 - `src/main.ts` : `bootstrapApplication(App, appConfig)`, sans NgModule.
 - `src/app/app.config.ts` : providers globaux (`provideRouter`, `provideBrowserGlobalErrorListeners`). Aucun service de feature n'y est fourni.
-- `src/app/app.ts` : composant racine `App`, affiche `<router-outlet>`.
-- Styles : `src/styles.css` (vide). Bootstrap est installé mais pas encore importé dans `angular.json`.
+- `src/app/app.ts` : composant racine `App`. Il devrait afficher `<router-outlet>`, mais pour l'instant `app.html` affiche `<app-layout-slice>` (démonstration en cours, voir « À faire »).
+- Styles : `src/styles.css`, qui charge le CSS précompilé de Bootstrap une seule fois (`@import 'bootstrap/dist/css/bootstrap.min.css'`). `angular.json` ne référence que `src/styles.css`.
 
 ## 2. Routes
 
@@ -65,7 +65,7 @@ Modèle de fiche, à recopier pour chaque élément :
 - **Utilisé par** : composants ou routes qui s'en servent.
 -->
 
-Sauf mention contraire (voir `Nav`), les composants ci-dessous sont des squelettes générés par le CLI : template `<p>… works!</p>`, sans input, output ni logique. Les fiches seront complétées quand ils auront un comportement.
+Sauf mention contraire (voir `Nav`, `LayoutSlice` et `LayoutTopBottom`), les composants ci-dessous sont des squelettes générés par le CLI : template `<p>… works!</p>`, sans input, output ni logique. Les fiches seront complétées quand ils auront un comportement.
 
 ### 3.1 auth
 
@@ -149,8 +149,17 @@ Routes de la feature : `Feature-contacts/contacts.routes.ts` (voir section 2).
 - **Utilisé par** : personne pour l'instant.
 
 #### LayoutSlice (`shared/layout-slice/layout-slice.ts`)
-- **Type** : dumb
-- **Rôle** : à préciser.
+- **Type** : dumb (mise en page par projection de contenu)
+- **Rôle** : coupe l'écran en deux colonnes sur toute la hauteur (`min-vh-100`) : à gauche un panneau sombre (`bg-dark text-white`, en colonne flex), à droite un panneau clair (`bg-body-tertiary`) qui centre son contenu. Les colonnes s'empilent sous le breakpoint `md`. Ne pose aucun repère (`<main>`…) : c'est à la page de le faire.
+- **Entrées** : deux `ng-content` : `[slotStart]` (colonne de gauche) et `[slotEnd]` (colonne de droite). Un contenu sans l'un de ces attributs n'est pas affiché.
+- **Sorties** : aucune.
+- **Utilisé par** : `App` (`app.html`, démonstration en cours). Prévu pour la page de connexion et d'autres pages en deux parties.
+
+#### LayoutTopBottom (`shared/layout-top-bottom/layout-top-bottom.ts`)
+- **Type** : dumb (mise en page par projection de contenu)
+- **Rôle** : même principe que `LayoutSlice`, mais en deux blocs empilés sur toute la largeur, sur la hauteur de l'écran (`vh-100`) : en haut un bloc sombre (`bg-dark text-white`, en colonne flex), en bas un bloc clair (`bg-body-tertiary`) qui centre son contenu. Chaque bloc prend 50 % de la hauteur (`h-50`) et défile si son contenu dépasse (`overflow-auto`). Ne pose aucun repère (`<main>`…).
+- **Entrées** : deux `ng-content`, avec les mêmes attributs que `LayoutSlice` : `[slotStart]` (bloc du haut) et `[slotEnd]` (bloc du bas). Un contenu sans l'un de ces attributs n'est pas affiché.
+- **Sorties** : aucune.
 - **Utilisé par** : personne pour l'instant.
 
 ## 5. Layout
@@ -165,14 +174,16 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 
 - Projet généré avec Angular CLI 22 (standalone, zoneless).
 - Bootstrap 5.3 ajouté aux dépendances npm.
-- `app.html` réduit à `<router-outlet>`.
+- Bootstrap chargé via `@import` dans `src/styles.css`.
 - Routes de toutes les features en lazy loading, avec un `title` par page.
 - Squelettes générés : pages, `FormAuth`, `FormContact`, `AuthService`, composants de `shared/`.
 - `Nav` : navigation principale avec `routerLink` / `routerLinkActive` et ses tests.
+- `LayoutSlice` : mise en page en deux colonnes avec `ng-content` (`slotStart` / `slotEnd`) et ses tests.
+- `LayoutTopBottom` : mise en page en deux blocs empilés (haut / bas, 50 % de la hauteur chacun), mêmes slots, et ses tests.
 
 ### À faire
 
-- Importer le CSS de Bootstrap dans `angular.json` (tableau `styles`).
+- Rétablir `<router-outlet>` dans `app.html` (en commentaire, remplacé par `<app-layout-slice>` pour une démonstration).
 - Afficher `Nav` (dans le header ou la mise en page commune).
 - Corriger `app.spec.ts`, qui cherche encore le `<h1>` du template par défaut.
 - Aligner les dossiers sur l'architecture cible (voir l'écart en 1.1).

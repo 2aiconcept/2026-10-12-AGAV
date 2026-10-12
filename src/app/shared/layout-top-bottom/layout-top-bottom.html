@@ -1,0 +1,10 @@
+<div class="d-flex flex-column vh-100">
+  <div class="h-50 overflow-auto d-flex flex-column bg-dark text-white p-4 p-lg-5">
+    <ng-content select="[slotStart]" />
+  </div>
+  <div
+    class="h-50 overflow-auto d-flex align-items-center justify-content-center bg-body-tertiary p-4 p-lg-5"
+  >
+    <ng-content select="[slotEnd]" />
+  </div>
+</div>

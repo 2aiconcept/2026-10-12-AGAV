@@ -1,1 +1,12 @@
-<p>layout-slice works!</p>
+<div class="container-fluid">
+  <div class="row min-vh-100">
+    <div class="col-md-6 d-flex flex-column bg-dark text-white p-4 p-lg-5">
+      <ng-content select="[slotStart]" />
+    </div>
+    <div
+      class="col-md-6 d-flex align-items-center justify-content-center bg-body-tertiary p-4 p-lg-5"
+    >
+      <ng-content select="[slotEnd]" />
+    </div>
+  </div>
+</div>
