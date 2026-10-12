@@ -65,7 +65,7 @@ Modèle de fiche, à recopier pour chaque élément :
 - **Utilisé par** : composants ou routes qui s'en servent.
 -->
 
-Sauf mention contraire (voir `Nav`, `LayoutSlice` et `LayoutTopBottom`), les composants ci-dessous sont des squelettes générés par le CLI : template `<p>… works!</p>`, sans input, output ni logique. Les fiches seront complétées quand ils auront un comportement.
+Sauf mention contraire (voir `Nav`, `LayoutSlice`, `LayoutTopBottom` et `LayoutPages`), les composants ci-dessous sont des squelettes générés par le CLI : template `<p>… works!</p>`, sans input, output ni logique. Les fiches seront complétées quand ils auront un comportement.
 
 ### 3.1 auth
 
@@ -144,8 +144,13 @@ Routes de la feature : `Feature-contacts/contacts.routes.ts` (voir section 2).
 - **Utilisé par** : personne pour l'instant (à placer dans le header ou la mise en page commune).
 
 #### LayoutPages (`shared/layout-pages/layout-pages.ts`)
-- **Type** : dumb
-- **Rôle** : mise en page commune des pages (à venir).
+
+> **Exercice, pour le moment** : ce composant est un corrigé d'exercice. Il n'est utilisé par aucune page et peut encore changer.
+
+- **Type** : dumb (mise en page par projection de contenu)
+- **Rôle** : cadre commun des pages de liste (entreprises, contacts, opportunités). C'est une carte Bootstrap (`card shadow-sm`) dans un `container`, découpée en quatre zones séparées par une bordure : en-tête, barre d'outils, contenu (sans marge intérieure, pour qu'un tableau touche les bords) et pied de page. Ne pose aucun repère (`<main>`…).
+- **Entrées** : quatre `ng-content`, dans cet ordre d'affichage : `[pageHeader]` (titre et action principale), `[pageToolbar]` (recherche, filtres), contenu par défaut (tout ce qui n'a pas d'attribut de slot, ex. : le tableau), `[pageFooter]` (compteur, pagination). Une zone sans contenu reste affichée, vide.
+- **Sorties** : aucune.
 - **Utilisé par** : personne pour l'instant.
 
 #### LayoutSlice (`shared/layout-slice/layout-slice.ts`)
@@ -180,6 +185,7 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - `Nav` : navigation principale avec `routerLink` / `routerLinkActive` et ses tests.
 - `LayoutSlice` : mise en page en deux colonnes avec `ng-content` (`slotStart` / `slotEnd`) et ses tests.
 - `LayoutTopBottom` : mise en page en deux blocs empilés (haut / bas, 50 % de la hauteur chacun), mêmes slots, et ses tests.
+- `LayoutPages` (exercice, pour le moment) : cadre des pages de liste (en-tête, barre d'outils, contenu, pied de page) et ses tests.
 
 ### À faire
 

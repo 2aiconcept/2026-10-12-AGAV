@@ -1,1 +1,16 @@
-<p>layout-pages works!</p>
+<div class="container py-4">
+  <div class="card shadow-sm">
+    <div class="card-header bg-body p-4">
+      <ng-content select="[pageHeader]" />
+    </div>
+    <div class="border-bottom p-3">
+      <ng-content select="[pageToolbar]" />
+    </div>
+    <div class="card-body p-3">
+      <ng-content />
+    </div>
+    <div class="card-footer bg-body px-4 py-3">
+      <ng-content select="[pageFooter]" />
+    </div>
+  </div>
+</div>

@@ -25,7 +25,7 @@ Modèle de notion, à recopier :
 
 1. [Démarrer une application Angular 22](#1-démarrer-une-application-angular-22)
 2. [Le routing](#2-le-routing)
-3. [Les composants](#3-les-composants)
+3. [Les composants](#3-les-composants) (la notion 3.2 est un exercice pour le moment)
 
 ## 1. Démarrer une application Angular 22
 
@@ -290,3 +290,55 @@ Le même principe sert pour une mise en page en haut / bas. On garde les **même
 - [Projection de contenu avec ng-content](https://angular.dev/guide/components/content-projection)
 - [Bootstrap : grille](https://getbootstrap.com/docs/5.3/layout/grid/)
 - [Bootstrap : tailles (`h-50`, `vh-100`)](https://getbootstrap.com/docs/5.3/utilities/sizing/)
+
+### 3.2 Combiner des slots nommés et un `ng-content` par défaut
+
+> **Exercice, pour le moment** : `LayoutPages` est un corrigé d'exercice. Il n'est pas encore utilisé dans l'application, et l'exemple d'utilisation ci-dessous est une illustration.
+
+**En bref** : un `<ng-content />` sans `select` reçoit tout ce qui n'est pris par aucun slot nommé. Il sert pour le contenu principal.
+
+**Explication** : dans une page de liste, l'en-tête, la barre d'outils et le pied de page sont des zones secondaires : on les marque avec un attribut (`pageHeader`, `pageToolbar`, `pageFooter`). Le contenu principal (le tableau) n'a pas besoin d'attribut, il tombe dans le `ng-content` par défaut. L'ordre d'affichage est celui du **template du layout**, pas celui de la page : la page peut écrire ses blocs dans n'importe quel ordre. Le piège : il ne doit y avoir qu'un seul `ng-content` sans `select`. Autre piège : une zone sans contenu reste affichée avec ses bordures. Côté Bootstrap, la carte (`card`, `card-header`, `card-body`, `card-footer`) donne le cadre, les séparateurs et les coins arrondis sans CSS. `p-0` sur le corps laisse un tableau toucher les bords de la carte.
+
+**Dans notre appli** (`src/app/shared/layout-pages/layout-pages.html`) :
+
+```html
+<div class="container py-4">
+  <div class="card shadow-sm">
+    <div class="card-header bg-body p-4">
+      <ng-content select="[pageHeader]" />
+    </div>
+    <div class="border-bottom p-3">
+      <ng-content select="[pageToolbar]" />
+    </div>
+    <div class="card-body p-0">
+      <ng-content />
+    </div>
+    <div class="card-footer bg-body px-4 py-3">
+      <ng-content select="[pageFooter]" />
+    </div>
+  </div>
+</div>
+```
+
+Utilisation dans une page :
+
+```html
+<app-layout-pages>
+  <div pageHeader class="d-flex justify-content-between align-items-center">
+    <div>
+      <p class="text-secondary mb-1">Portefeuille commercial</p>
+      <h1 class="h2 mb-0">Entreprises</h1>
+    </div>
+    <button type="button" class="btn btn-primary">Nouvelle entreprise</button>
+  </div>
+  <div pageToolbar>…recherche…</div>
+  <table class="table mb-0">…</table>
+  <div pageFooter>4 entreprises affichées</div>
+</app-layout-pages>
+```
+
+Le test vérifie que l'ordre d'affichage suit le layout, même si l'hôte écrit les blocs dans le désordre (`src/app/shared/layout-pages/layout-pages.spec.ts`).
+
+**Docs officielles** :
+- [Projection de contenu avec ng-content](https://angular.dev/guide/components/content-projection)
+- [Bootstrap : Card](https://getbootstrap.com/docs/5.3/components/card/)
