@@ -24,6 +24,7 @@ Modèle de notion, à recopier :
 ## Sommaire
 
 1. [Démarrer une application Angular 22](#1-démarrer-une-application-angular-22)
+2. [Le routing](#2-le-routing)
 
 ## 1. Démarrer une application Angular 22
 
@@ -108,3 +109,64 @@ export const appConfig: ApplicationConfig = {
 - [Serveur MCP d'Angular CLI](https://angular.dev/ai/mcp)
 - [Playwright MCP](https://github.com/microsoft/playwright-mcp)
 - [MCP dans Claude Code](https://docs.anthropic.com/en/docs/claude-code/mcp)
+
+## 2. Le routing
+
+### 2.1 Charger les pages en lazy loading : `loadComponent` et `loadChildren`
+
+**En bref** : chaque page est téléchargée seulement quand on navigue vers elle, au lieu d'alourdir le bundle initial.
+
+**Explication** : `component: MaPage` importe la page en haut du fichier de routes, donc elle part dans le bundle initial. `loadComponent: () => import('...')` crée un chunk séparé, chargé à la première visite. Pour une feature à plusieurs pages, `loadChildren` charge un fichier de routes propre à la feature, qui charge lui-même ses pages en lazy loading. Avec `export default`, le router récupère directement l'export par défaut, sans `.then((m) => m.MaPage)`. Le piège : garder un `import` en haut de `app.routes.ts` (même inutilisé ou pour une seule route) remet la page dans le bundle initial. On le vérifie avec `npm run build`, qui liste les « Lazy chunk files ».
+
+**Dans notre appli** (`src/app/app.routes.ts`) :
+
+```ts
+{
+  path: 'contacts',
+  loadChildren: () => import('./Feature-contacts/contacts.routes'),
+},
+{
+  path: 'opportunites',
+  title: 'Opportunités – Mini-CRM',
+  loadComponent: () => import('./Feature-opportunites/pages/page-opportunites/page-opportunites'),
+},
+```
+
+(`src/app/Feature-contacts/contacts.routes.ts`) :
+
+```ts
+const contactsRoutes: Routes = [
+  {
+    path: '',
+    title: 'Contacts – Mini-CRM',
+    loadComponent: () => import('./pages/page-contacts/page-contacts'),
+  },
+  // ...
+];
+
+export default contactsRoutes;
+```
+
+**Docs officielles** :
+- [Lazy loading des routes](https://angular.dev/guide/routing/define-routes#lazily-loaded-components-and-routes)
+- [Route (API)](https://angular.dev/api/router/Route)
+
+### 2.2 Donner un titre à chaque page : `title`
+
+**En bref** : la propriété `title` d'une route met à jour le titre de l'onglet à chaque navigation.
+
+**Explication** : dans une application monopage (SPA), le `<title>` ne change pas tout seul. Or c'est la première information qu'un lecteur d'écran annonce après une navigation, et ce qui s'affiche dans l'onglet et l'historique. Bonne pratique : un titre unique par page, du plus précis au plus général (« Contacts – Mini-CRM »). Critère WCAG 2.4.2 « Titre de page ».
+
+**Dans notre appli** (`src/app/app.routes.ts`) :
+
+```ts
+{
+  path: '**',
+  title: 'Page introuvable – Mini-CRM',
+  loadComponent: () => import('./Feature-not-found/pages/page-not-found/page-not-found'),
+},
+```
+
+**Docs officielles** :
+- [Titre de page](https://angular.dev/guide/routing/define-routes#page-titles)
+- [WCAG 2.4.2 Page Titled](https://www.w3.org/WAI/WCAG22/Understanding/page-titled.html)

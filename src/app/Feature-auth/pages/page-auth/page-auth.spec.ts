@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { PageAuth } from './page-auth';
+import PageAuth from './page-auth';
 
 describe('PageAuth', () => {
   let component: PageAuth;

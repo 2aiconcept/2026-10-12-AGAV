@@ -1,19 +1,21 @@
 import { Routes } from '@angular/router';
-import PageContacts from './pages/page-contacts/page-contacts';
-import { PageAjouterContact } from './pages/page-ajouter-contact/page-ajouter-contact';
-import { PageEditerContact } from './pages/page-editer-contact/page-editer-contact';
 
-export const contactsRoutes: Routes = [
+const contactsRoutes: Routes = [
   {
     path: '',
-    component: PageContacts,
+    title: 'Contacts – Mini-CRM',
+    loadComponent: () => import('./pages/page-contacts/page-contacts'),
   },
   {
     path: 'ajouter',
-    component: PageAjouterContact,
+    title: 'Ajouter un contact – Mini-CRM',
+    loadComponent: () => import('./pages/page-ajouter-contact/page-ajouter-contact'),
   },
   {
     path: 'editer/:id',
-    component: PageEditerContact,
+    title: 'Modifier un contact – Mini-CRM',
+    loadComponent: () => import('./pages/page-editer-contact/page-editer-contact'),
   },
 ];
+
+export default contactsRoutes;

@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { PageOpportunites } from './page-opportunites';
+import PageOpportunites from './page-opportunites';
 
 describe('PageOpportunites', () => {
   let component: PageOpportunites;

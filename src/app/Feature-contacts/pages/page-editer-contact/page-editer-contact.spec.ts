@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { PageEditerContact } from './page-editer-contact';
+import PageEditerContact from './page-editer-contact';
 
 describe('PageEditerContact', () => {
   let component: PageEditerContact;

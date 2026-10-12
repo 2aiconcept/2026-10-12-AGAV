@@ -6,4 +6,4 @@ import { Component } from '@angular/core';
   styleUrl: './page-ajouter-contact.css',
   templateUrl: './page-ajouter-contact.html',
 })
-export class PageAjouterContact {}
+export default class PageAjouterContact {}

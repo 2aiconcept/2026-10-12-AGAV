@@ -6,4 +6,4 @@ import { Component } from '@angular/core';
   styleUrl: './page-auth.css',
   templateUrl: './page-auth.html',
 })
-export class PageAuth {}
+export default class PageAuth {}

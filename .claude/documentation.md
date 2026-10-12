@@ -36,11 +36,19 @@ Un élément utilisé par une seule feature reste dans cette feature. Il passe d
 
 ## 2. Routes
 
-Déclarées dans `src/app/app.routes.ts`, pages chargées en lazy loading.
+Déclarées dans `src/app/app.routes.ts`. Toutes les pages sont chargées en lazy loading (`loadComponent`, ou `loadChildren` pour une feature à plusieurs pages) et exportées par défaut (`export default class`). Chaque route a un `title` (titre de l'onglet, annoncé par les lecteurs d'écran).
 
-| Chemin | Composant | Feature | Guard | Description |
-| ------ | --------- | ------- | ----- | ----------- |
-| —      | —         | —       | —     | Aucune route pour l'instant |
+| Chemin                | Composant            | Feature        | Guard | Description                          |
+| --------------------- | -------------------- | -------------- | ----- | ------------------------------------ |
+| `''`                  | `PageAuth`           | auth           | —     | Connexion                            |
+| `entreprises`         | `PageEntreprises`    | entreprises    | —     | Liste des entreprises                |
+| `contacts`            | `PageContacts`       | contacts       | —     | Liste des contacts (`contacts.routes.ts`) |
+| `contacts/ajouter`    | `PageAjouterContact` | contacts       | —     | Création d'un contact                |
+| `contacts/editer/:id` | `PageEditerContact`  | contacts       | —     | Modification d'un contact            |
+| `opportunites`        | `PageOpportunites`   | opportunites   | —     | Liste des opportunités               |
+| `**`                  | `PageNotFound`       | not-found      | —     | Page introuvable                     |
+
+Les routes de la feature contacts sont dans `src/app/Feature-contacts/contacts.routes.ts`, exportées par défaut et chargées par `loadChildren`.
 
 ## 3. Features
 
@@ -87,6 +95,7 @@ _Rien pour l'instant._
 
 - Projet généré avec Angular CLI 22 (standalone, zoneless).
 - Bootstrap 5.3 ajouté aux dépendances npm.
+- Routes de toutes les features en lazy loading, avec un `title` par page (pages encore vides).
 
 ### À faire
 
