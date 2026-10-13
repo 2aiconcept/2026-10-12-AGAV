@@ -5,16 +5,7 @@
 
   <app-nav class="flex-grow-1"></app-nav>
 
-  <div class="d-flex align-items-center gap-2">
-    <span
-      class="avatar d-flex align-items-center justify-content-center rounded-circle fw-bold bg-primary-subtle text-primary-emphasis"
-      aria-hidden="true"
-      >CM</span
-    >
-    <div class="lh-sm">
-      <div class="fw-semibold">Chris Martin</div>
-    </div>
-  </div>
+  <app-badge-utilisateur [utilisateur]="utilisateur" />
 
   <app-button-small libelle="Déconnexion" couleur="light" isOutline (action)="logout()" />
 </header>

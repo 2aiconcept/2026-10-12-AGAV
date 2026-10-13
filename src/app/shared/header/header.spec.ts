@@ -32,8 +32,9 @@ describe('Header', () => {
     expect(element.querySelector('nav[aria-label="Navigation principale"]')).not.toBeNull();
   });
 
-  it("affiche le nom de l'utilisateur", () => {
+  it("affiche le nom et les initiales de l'utilisateur", () => {
     expect(element.textContent).toContain('Chris Martin');
+    expect(element.textContent).toContain('CM');
   });
 
   function boutonDeconnexion(): HTMLButtonElement | undefined {
@@ -44,14 +45,5 @@ describe('Header', () => {
 
   it('affiche un bouton de déconnexion', () => {
     expect(boutonDeconnexion()).toBeDefined();
-  });
-
-  it('émet deconnexion quand on clique sur le bouton de déconnexion', () => {
-    let nombreDeDeconnexions = 0;
-    fixture.componentInstance.deconnexion.subscribe(() => nombreDeDeconnexions++);
-
-    boutonDeconnexion()?.click();
-
-    expect(nombreDeDeconnexions).toBe(1);
   });
 });

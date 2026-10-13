@@ -347,7 +347,7 @@ Le test vérifie que l'ordre d'affichage suit le layout, même si l'hôte écrit
 
 **En bref** : on construit un écran avec les classes utilitaires de Bootstrap (flex, espacements, couleurs). On n'écrit du CSS que pour ce que Bootstrap ne sait pas faire.
 
-**Explication** : pour une barre horizontale, `d-flex align-items-center gap-4` aligne les blocs et les espace sans CSS. `flex-grow-1` sur la zone centrale pousse le reste à droite. Bouton en pilule : `btn btn-outline-light rounded-pill`. Avant d'écrire une règle CSS, on vérifie qu'aucune classe ne le fait. Ici, seul l'avatar en a besoin : un cercle demande une largeur égale à la hauteur, et Bootstrap n'a pas de taille fixe. On commente le « pourquoi » de cette règle. Accessibilité : le bandeau est un `<header>`, repère que les lecteurs d'écran listent. Les initiales de l'avatar sont masquées (`aria-hidden="true"`), car le nom complet est écrit juste à côté, et sinon il serait lu deux fois. On commence en **HTML statique** (nom écrit en dur) pour valider le design. Les données arriveront avec la feature auth.
+**Explication** : pour une barre horizontale, `d-flex align-items-center gap-4` aligne les blocs et les espace sans CSS. `flex-grow-1` sur la zone centrale pousse le reste à droite. Bouton en pilule : `btn btn-outline-light rounded-pill`. Avant d'écrire une règle CSS, on vérifie qu'aucune classe ne le fait. Ici, seul l'avatar (aujourd'hui dans `BadgeUtilisateur`) en a besoin : un cercle demande une largeur égale à la hauteur, et Bootstrap n'a pas de taille fixe. On commente le « pourquoi » de cette règle. Accessibilité : le bandeau est un `<header>`, repère que les lecteurs d'écran listent. Les initiales de l'avatar sont masquées (`aria-hidden="true"`), car le nom complet est écrit juste à côté, et sinon il serait lu deux fois. On commence en **HTML statique** (nom écrit en dur) pour valider le design. Les données arriveront avec la feature auth.
 
 Découper en composants : le menu était d'abord écrit dans le header. On l'a déplacé dans le composant dumb `Nav` (`shared/nav/`), et le header l'affiche avec `<app-nav>`. Le header n'importe plus `RouterLinkActive`, qui ne sert qu'au menu, mais il importe `Nav`. Les tests suivent le même découpage : `nav.spec.ts` teste les liens et `aria-current`, `header.spec.ts` vérifie seulement que le menu est présent. Une classe posée sur la balise d'un composant (`<app-nav class="flex-grow-1">`) s'applique à son élément hôte : c'est comme ça que le header lui fait prendre la place libre.
 
@@ -374,22 +374,13 @@ Même démarche pour le logo, extrait dans le composant dumb `Logo` (`shared/log
 
   <app-nav class="flex-grow-1"></app-nav>
 
-  <div class="d-flex align-items-center gap-2">
-    <span
-      class="avatar d-flex align-items-center justify-content-center rounded-circle fw-bold bg-primary-subtle text-primary-emphasis"
-      aria-hidden="true"
-      >CM</span
-    >
-    <div class="lh-sm">
-      <div class="fw-semibold">Chris Martin</div>
-    </div>
-  </div>
+  <app-badge-utilisateur [utilisateur]="utilisateur" />
 
-  <app-button-small libelle="Déconnexion" couleur="light" isOutline (action)="deconnexion.emit()" />
+  <app-button-small libelle="Déconnexion" couleur="light" isOutline (action)="logout()" />
 </header>
 ```
 
-(`src/app/shared/header/header.css`) :
+L'avatar, d'abord écrit dans le header, est maintenant dans `BadgeUtilisateur` (voir 3.5), avec sa règle CSS (`src/app/shared/badge-utilisateur/badge-utilisateur.css`) :
 
 ```css
 /* Bootstrap n'a pas de taille fixe pour un cercle : largeur = hauteur. */
@@ -423,7 +414,7 @@ Même démarche pour le logo, extrait dans le composant dumb `Logo` (`shared/log
 
 Pièges et bonnes pratiques :
 - Ne pas nommer un output comme un événement natif (`click`) ni le préfixer par `on`. Sinon on ne sait plus si `(click)` vient du composant ou du `<button>`. Un nom trop proche pose le même problème : on avait d'abord appelé l'output `clic`, qu'on confondait à la lecture avec `(click)`. On l'a renommé `action` : le nom ne ressemble à aucun événement du DOM, et il dit que le parent choisit l'action à déclencher.
-- Le composant dumb ne décide pas de ce que fait le clic. `ButtonSmall` émet `action`, le header le transforme en `deconnexion`, et ce sera au parent qui connaît l'authentification de déconnecter réellement.
+- Le composant dumb ne décide pas de ce que fait le clic. `ButtonSmall` émet `action`, et c'est le header (méthode `logout()`) qui décide d'y répondre par une déconnexion.
 - Sur un même élément, l'attribut `class` et la liaison `[class]` se combinent : on garde les classes fixes dans `class`, la classe calculée dans `[class]`.
 - Toujours `type="button"` sur un bouton qui n'envoie pas de formulaire.
 - Une icône à côté d'un libellé est décorative : `aria-hidden="true"`.
@@ -461,17 +452,13 @@ export class ButtonSmall {
 </button>
 ```
 
-Utilisation dans le header, qui fait remonter le clic à son propre parent (`src/app/shared/header/header.html` et `header.ts`) :
+Utilisation dans le header, qui réagit à `action` en appelant sa méthode `logout()`, encore vide en attendant la feature auth (`src/app/shared/header/header.html`) :
 
 ```html
-<app-button-small libelle="Déconnexion" couleur="light" isOutline (action)="deconnexion.emit()" />
+<app-button-small libelle="Déconnexion" couleur="light" isOutline (action)="logout()" />
 ```
 
-```ts
-export class Header {
-  readonly deconnexion = output<void>();
-}
-```
+Autre option, si le header doit rester dumb : il fait remonter l'information à son propre parent avec un output (`readonly deconnexion = output<void>()` et `(action)="deconnexion.emit()"`). C'est alors ce parent qui appelle le service d'authentification.
 
 Autres usages possibles : `<app-button-small libelle="Nouvelle entreprise" icone="+" />` (fond plein `primary`), `<app-button-small libelle="Modifier" icone="✎" couleur="secondary" isOutline />`.
 
@@ -493,3 +480,75 @@ it('émet action quand on clique sur le bouton', () => {
 - [Outputs (`output()`)](https://angular.dev/guide/components/outputs)
 - [computed()](https://angular.dev/guide/signals#computed-signals)
 - [Bootstrap : Buttons (`btn-outline-*`)](https://getbootstrap.com/docs/5.3/components/buttons/)
+
+### 3.5 Transformer une valeur à l'affichage : pipe personnalisé et `@let`
+
+**En bref** : un **pipe** transforme une valeur dans le template (`{{ nomComplet | initiales }}`). `@let` déclare une variable locale au template, pour ne pas répéter une expression.
+
+**Explication** : pour afficher « CM » à partir de « Chris Martin », on a plusieurs options :
+- écrire le calcul dans le template : illisible ;
+- une méthode du composant `initiales()` : à éviter dans un template, elle est rappelée à chaque détection de changement ;
+- un `computed()` : bien, mais propre à ce composant ;
+- un **pipe pur** : c'est le bon choix ici.
+
+Pourquoi le pipe :
+- Angular ne le recalcule que si sa valeur d'entrée change (pur par défaut).
+- Il est réutilisable partout : avatars de la liste des contacts, des opportunités…
+- Il se teste sans TestBed, avec un simple `new InitialesPipe()`.
+
+Un pipe standalone s'importe dans le composant qui l'utilise (`imports: [InitialesPipe]`). Le piège : un pipe ne doit faire que de la mise en forme, sans appel HTTP ni effet de bord.
+
+`@let nomComplet = …;` calcule le nom complet une fois et le réutilise deux fois : dans l'avatar et dans le texte. La variable n'existe que dans le template et se met à jour quand `utilisateur()` change.
+
+**Dans notre appli** (`src/app/shared/pipes/initiales-pipe.ts`) :
+
+```ts
+const NOMBRE_MAX_INITIALES = 2;
+
+@Pipe({
+  name: 'initiales',
+})
+export class InitialesPipe implements PipeTransform {
+  transform(nomComplet: string): string {
+    return nomComplet
+      .split(' ')
+      .filter((mot) => mot !== '')
+      .slice(0, NOMBRE_MAX_INITIALES)
+      .map((mot) => mot[0].toUpperCase())
+      .join('');
+  }
+}
+```
+
+(`src/app/shared/badge-utilisateur/badge-utilisateur.html`) :
+
+```html
+@let nomComplet = utilisateur().prenom + ' ' + utilisateur().nom;
+
+<div class="d-flex align-items-center gap-2">
+  <span
+    class="avatar d-flex align-items-center justify-content-center rounded-circle fw-bold bg-primary-subtle text-primary-emphasis"
+    aria-hidden="true"
+    >{{ nomComplet | initiales }}</span
+  >
+  <div class="lh-sm">
+    <div class="fw-semibold">{{ nomComplet }}</div>
+  </div>
+</div>
+```
+
+Le composant reçoit tout l'utilisateur par un seul signal input (`readonly utilisateur = input.required<Utilisateur>();`), et le header le lui passe : `<app-badge-utilisateur [utilisateur]="utilisateur" />`.
+
+Tester un pipe, sans TestBed (`src/app/shared/pipes/initiales-pipe.spec.ts`) :
+
+```ts
+const pipe = new InitialesPipe();
+
+it('garde au plus deux initiales', () => {
+  expect(pipe.transform('Jean Paul Dupont')).toBe('JP');
+});
+```
+
+**Docs officielles** :
+- [Pipes : créer un pipe personnalisé](https://angular.dev/guide/templates/pipes#creating-custom-pipes)
+- [Variables locales avec `@let`](https://angular.dev/guide/templates/variables#local-template-variables-with-let)
