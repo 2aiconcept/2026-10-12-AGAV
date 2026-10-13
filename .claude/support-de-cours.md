@@ -117,6 +117,41 @@ export const appConfig: ApplicationConfig = {
 - [Playwright MCP](https://github.com/microsoft/playwright-mcp)
 - [MCP dans Claude Code](https://docs.anthropic.com/en/docs/claude-code/mcp)
 
+### 1.5 Configurer par environnement : `environment.ts` et `fileReplacements`
+
+**En bref** : on met ce qui change entre développement et production (URL de l'API, indicateurs) dans un fichier d'environnement. Au build de production, Angular le remplace par sa version `.prod`.
+
+**Explication** :
+- Les deux fichiers exportent le même objet `environment`, avec les mêmes propriétés et des valeurs différentes.
+- Le code importe **toujours** `environments/environment`, jamais `environment.prod` : c'est `fileReplacements`, dans la configuration `production` d'`angular.json`, qui fait l'échange au moment du build.
+- `ng serve` utilise la configuration `development` par défaut, donc `environment.ts`. `ng build` utilise `production` par défaut, donc `environment.prod.ts`.
+- Bonne pratique : `production: false` dans `environment.ts`, `true` dans la version `.prod`. Sinon l'indicateur ne sert à rien.
+- Le piège : ces fichiers sont inclus dans le JavaScript envoyé au navigateur. On n'y met jamais de secret (mot de passe, clé privée), seulement de la configuration publique comme une URL d'API.
+- `ng generate environments` crée les fichiers et la configuration automatiquement.
+
+**Dans notre appli** (`angular.json`, configuration `production` du build) :
+
+```json
+"fileReplacements": [
+  {
+    "replace": "src/environments/environment.ts",
+    "with": "src/environments/environment.prod.ts"
+  }
+]
+```
+
+(`src/environments/environment.prod.ts`) :
+
+```ts
+export const environment = {
+  production: true,
+  apiBaseUrl: 'https://mini-crm-api-jwt-production.up.railway.app/api',
+};
+```
+
+**Docs officielles** :
+- [Configurer les environnements de l'application](https://angular.dev/tools/cli/environments)
+
 ## 2. Le routing
 
 ### 2.1 Charger les pages en lazy loading : `loadComponent` et `loadChildren`

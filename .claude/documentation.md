@@ -34,6 +34,7 @@ Un élément utilisé par une seule feature reste dans cette feature. Il passe d
 - `src/main.ts` : `bootstrapApplication(App, appConfig)`, sans NgModule.
 - `src/app/app.config.ts` : providers globaux (`provideRouter`, `provideBrowserGlobalErrorListeners`). Aucun service de feature n'y est fourni.
 - `src/app/app.ts` : composant racine `App`. `app.html` n'affiche que `<router-outlet>` (le header et une démonstration de `<app-layout-pages>` y sont en commentaire). Le header est affiché par `AppShell`, sur les pages connectées seulement (voir section 2).
+- Environnements : `src/environments/environment.ts` (développement, `production: false`) et `environment.prod.ts` (`production: true`). Les deux exposent `apiBaseUrl` (aujourd'hui la même URL d'API). Au build de production, `angular.json` remplace le premier par le second (`fileReplacements`). Le code importe toujours `environments/environment`. Aucun fichier ne l'importe encore.
 - Styles : `src/styles.css`, qui charge le CSS précompilé de Bootstrap une seule fois (`@import 'bootstrap/dist/css/bootstrap.min.css'`). `angular.json` ne référence que `src/styles.css`.
 
 ## 2. Routes
@@ -77,7 +78,7 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
 
 #### PageAuth (`Feature-auth/pages/page-auth/page-auth.ts`)
 - **Type** : smart
-- **Rôle** : page de connexion, en deux colonnes avec `LayoutSlice`. Colonne gauche (`slotStart`) : `<app-logo>` en haut, au centre (`my-auto`) l'accroche « Mini-CRM », le titre `h1` et l'invitation à se connecter, en bas le copyright. Colonne droite (`slotEnd`) : texte provisoire « formulaire » (le formulaire est à venir). Uniquement des classes Bootstrap ; les gris et l'accent viennent du thème sombre de la colonne (`text-body-secondary`, `text-primary-emphasis`).
+- **Rôle** : page de connexion, en deux colonnes avec `LayoutSlice`. Colonne gauche (`slotStart`) : `<app-logo>` en haut, au centre (`my-auto`) l'accroche « Mini-CRM », le titre `h1` et l'invitation à se connecter, en bas le copyright. Colonne droite (`slotEnd`) : texte provisoire « formulaire » et un bouton « connexion » provisoire qui appelle `seConnecter()`, laquelle appelle `AuthService.connexion()` (le formulaire est à venir). Uniquement des classes Bootstrap ; les gris et l'accent viennent du thème sombre de la colonne (`text-body-secondary`, `text-primary-emphasis`).
 - **Utilisé par** : route `connexion`.
 
 #### FormAuth (`Feature-auth/ui/form-auth/form-auth.ts`)
@@ -87,8 +88,8 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
 
 #### AuthService (`Feature-auth/data-access/auth-service.ts`)
 - **Type** : service (`@Service()`)
-- **Rôle** : connexion à l'API (à venir). Classe vide pour l'instant.
-- **Utilisé par** : personne pour l'instant.
+- **Rôle** : connexion à l'API (à venir). Pour l'instant, une seule méthode `connexion()`, vide.
+- **Utilisé par** : `PageAuth`.
 
 ### 3.2 entreprises
 
@@ -249,6 +250,7 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - `BadgeUtilisateur` et le pipe `initiales` : bloc utilisateur extrait du header, avec leurs tests.
 - Routes : `/connexion` hors coque, pages de l'application dans la coque `AppShell` (header + `<router-outlet>` enfant).
 - `PageAuth` : colonne de présentation conforme à la maquette (`LayoutSlice` + `Logo`), avec ses tests. Le formulaire reste à faire.
+- Environnements : `environment.ts` / `environment.prod.ts` avec `apiBaseUrl`, remplacement automatique au build de production (`fileReplacements`).
 
 ### À faire
 

@@ -1,6 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { LayoutSlice } from '../../../shared/layout-slice/layout-slice';
 import { Logo } from '../../../shared/logo/logo';
+import { AuthService } from '../../data-access/auth-service';
 
 @Component({
   imports: [LayoutSlice, Logo],
@@ -8,4 +9,10 @@ import { Logo } from '../../../shared/logo/logo';
   styleUrl: './page-auth.css',
   templateUrl: './page-auth.html',
 })
-export default class PageAuth {}
+export default class PageAuth {
+  authService = inject(AuthService);
+
+  seConnecter() {
+    this.authService.connexion();
+  }
+}
