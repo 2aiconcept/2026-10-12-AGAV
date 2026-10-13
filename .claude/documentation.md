@@ -59,6 +59,17 @@ Deux familles de pages :
 
 Les routes de la feature contacts sont dans `src/app/Feature-contacts/contacts.routes.ts`, exportées par défaut et chargées par `loadChildren`.
 
+## 2 bis. API
+
+Détail complet (tous les endpoints, corps envoyés et reçus, erreurs, modèles) : **`.claude/endpoints-et-donnees.md`**, tiré du Swagger (`https://mini-crm-api-jwt-production.up.railway.app/api-docs/`).
+
+En résumé :
+- URL : `environment.apiBaseUrl` = `https://mini-crm-api-jwt-production.up.railway.app/api`.
+- Auth JWT : `POST /auth/login` et `POST /auth/register` renvoient `{ token, user }`. Les autres routes exigent `Authorization: Bearer <token>`. `GET /auth/profile` renvoie l'utilisateur connecté.
+- CRUD complet (`GET` liste, `GET /{id}`, `POST`, `PUT /{id}` partiel, `DELETE /{id}`) sur `/entreprises`, `/contacts` et `/opportunites`. Plus `GET /entreprises/{id}/contacts`, `GET /contacts/{id}/opportunites` et `GET /dashboard/stats`.
+- Modèles : `Entreprise`, `Contact` (`entreprise_id`), `Opportunite` (`contact_id`, `entreprise_id`, `statut` : `Prospect` | `En cours` | `Gagne` | `Perdu`), `UserProfile` (`id`, `email`, `nom`, `prenom`, `role`).
+- Comptes de démo : `user@test.com` / `password123`, `admin@test.com` / `admin123`.
+
 ## 3. Features
 
 <!--
@@ -181,7 +192,7 @@ Routes de la feature : `Feature-contacts/contacts.routes.ts` (voir section 2).
 
 #### Utilisateur (`shared/utils/models/utilisateur.ts`)
 - **Type** : modèle (interface)
-- **Rôle** : `prenom`, `nom`. Provisoire : à aligner sur la réponse de l'API d'authentification quand `endpoints-et-donnees.md` existera.
+- **Rôle** : `prenom`, `nom`. Sous-ensemble du `UserProfile` de l'API (`id`, `email`, `nom`, `prenom`, `role`) : à compléter quand la feature auth branchera l'utilisateur connecté.
 - **Utilisé par** : `BadgeUtilisateur`, `Header`.
 
 #### CouleurBootstrap (`shared/utils/models/couleur-bootstrap.ts`)
@@ -251,6 +262,7 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - Routes : `/connexion` hors coque, pages de l'application dans la coque `AppShell` (header + `<router-outlet>` enfant).
 - `PageAuth` : colonne de présentation conforme à la maquette (`LayoutSlice` + `Logo`), avec ses tests. Le formulaire reste à faire.
 - Environnements : `environment.ts` / `environment.prod.ts` avec `apiBaseUrl`, remplacement automatique au build de production (`fileReplacements`).
+- API documentée depuis le Swagger dans `.claude/endpoints-et-donnees.md` (endpoints, modèles, erreurs).
 
 ### À faire
 
@@ -261,5 +273,4 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - Corriger `app.spec.ts` : il cherche encore le `<h1>` du template par défaut, et `App` ne se crée plus sans `provideRouter()` (le header contient des `routerLink`).
 - Aligner les dossiers sur l'architecture cible (voir l'écart en 1.1).
 - Installer et configurer Playwright (dossier `e2e/`, scripts `npm run e2e*`).
-- Créer `.claude/endpoints-et-donnees.md`.
 - Features : `auth`, `entreprises`, `contacts`, `opportunites`.

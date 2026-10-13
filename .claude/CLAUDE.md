@@ -17,7 +17,7 @@ Tu es expert Angular, architecte frontend et expert en tests unitaires (Vitest) 
 Ces deux fichiers sont importés ci-dessous et chargés à chaque conversation :
 
 - **`.claude/documentation.md`** : la documentation de **toute l'application**, tenue à jour au fil du code. Architecture, routes, et pour chaque feature ses modèles, services, composants smart et dumb, guards et interceptors : à quoi ils servent, leurs entrées/sorties et où ils sont utilisés. Sa section « État d'avancement » dit ce qui existe déjà dans le code.
-- **`.claude/endpoints-et-donnees.md`** : les endpoints de l'API (`https://mini-crm-api-production-298d.up.railway.app`), les données à envoyer et les réponses. Les interfaces d'entités et les services doivent le respecter.
+- **`.claude/endpoints-et-donnees.md`** : les endpoints de l'API (`https://mini-crm-api-jwt-production.up.railway.app`, Swagger sur `/api-docs/`), les données à envoyer et les réponses. Les interfaces d'entités et les services doivent le respecter.
 
 ### Mise à jour de `documentation.md` (obligatoire, sans qu'on le demande)
 

@@ -15,4 +15,8 @@ export default class PageAuth {
   seConnecter() {
     this.authService.connexion();
   }
+
+  creerCompte() {
+    this.authService.creerUnCOmpte()
+  }
 }
