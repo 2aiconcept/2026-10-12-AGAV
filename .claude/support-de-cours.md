@@ -26,6 +26,7 @@ Modèle de notion, à recopier :
 1. [Démarrer une application Angular 22](#1-démarrer-une-application-angular-22)
 2. [Le routing](#2-le-routing)
 3. [Les composants](#3-les-composants) (la notion 3.2 est un exercice pour le moment)
+4. [HTTP et services](#4-http-et-services)
 
 ## 1. Démarrer une application Angular 22
 
@@ -660,3 +661,56 @@ it('garde au plus deux initiales', () => {
 - [Bootstrap : Auto margins en flex](https://getbootstrap.com/docs/5.3/utilities/flex/#auto-margins)
 - [Bootstrap : Colors (`text-body-secondary`, `text-*-emphasis`)](https://getbootstrap.com/docs/5.3/utilities/colors/)
 - [WCAG 2.2 : contraste minimum (1.4.3)](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)
+
+## 4. HTTP et services
+
+### 4.1 Appeler l'API avec `HttpClient` : un observable froid
+
+**En bref** : un service `@Service()` injecte `HttpClient` et renvoie l'`Observable` de la requête. La requête ne part qu'au moment où quelqu'un s'abonne.
+
+**Explication** :
+- `provideHttpClient()` dans `app.config.ts` rend `HttpClient` disponible dans toute l'application. C'est un provider technique global, pas un service de feature.
+- Le service injecte `HttpClient` avec `inject()`. On type la réponse (`post<User>(…)`) avec une interface qui suit l'API (voir `endpoints-et-donnees.md`), et on construit l'URL à partir de `environment.apiBaseUrl`.
+- **Étape 1 de la progression** : le service ne s'abonne pas. Il renvoie l'observable, et c'est la page qui décide quand l'exécuter (`subscribe`, ou pipe `async`).
+- Un observable de `HttpClient` est **froid** : rien ne se passe tant qu'on ne s'y abonne pas, et chaque nouvel abonnement relance une nouvelle requête. Le piège : appeler `creerUnCompte(…)` sans `subscribe()` n'envoie rien. À l'inverse, s'abonner deux fois crée deux comptes.
+- Une erreur HTTP (400, 401…) arrive dans le callback `error` de l'abonnement, pas dans le `next`.
+
+**Dans notre appli** (`src/app/Feature-auth/data-access/auth-service.ts`) :
+
+```ts
+@Service()
+export class AuthService {
+  private readonly http = inject(HttpClient);
+  private readonly apiUrl = `${environment.apiBaseUrl}`;
+
+  creerUnCompte(register: Register): Observable<User> {
+    return this.http.post<User>(`${this.apiUrl}/auth/register`, register);
+  }
+}
+```
+
+**Tester un service HTTP** : `provideHttpClient()` + `provideHttpClientTesting()` remplacent le vrai réseau. `HttpTestingController` vérifie la requête (URL, méthode, corps) et renvoie une réponse simulée avec `flush()`. `verify()` dans `afterEach` échoue s'il reste une requête non traitée. Le premier test prouve que l'observable est froid (`src/app/Feature-auth/data-access/auth-service.spec.ts`) :
+
+```ts
+it("n'envoie aucune requête tant qu'on ne s'abonne pas", () => {
+  service.creerUnCompte(nouveauCompte);
+
+  httpTesting.expectNone(`${environment.apiBaseUrl}/auth/register`);
+});
+
+it('envoie les données du compte en POST sur /auth/register', () => {
+  service.creerUnCompte(nouveauCompte).subscribe();
+
+  const requete = httpTesting.expectOne(`${environment.apiBaseUrl}/auth/register`);
+
+  expect(requete.request.method).toBe('POST');
+  expect(requete.request.body).toEqual(nouveauCompte);
+  requete.flush(reponseApi);
+});
+```
+
+**Docs officielles** :
+- [HttpClient : mise en place](https://angular.dev/guide/http/setup)
+- [HttpClient : faire des requêtes](https://angular.dev/guide/http/making-requests)
+- [Tester les requêtes HTTP](https://angular.dev/guide/http/testing)
+- [RxJS : Observable](https://rxjs.dev/guide/observable)

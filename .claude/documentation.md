@@ -27,12 +27,12 @@ src/app/
 
 Un élément utilisé par une seule feature reste dans cette feature. Il passe dans `shared/` dès qu'une deuxième feature en a besoin.
 
-**Écart actuel avec cette cible** : les dossiers du code s'appellent `Feature-<feature>/` (au lieu de `<feature>/`), `pages/` (au lieu de `smart-components/`) et `ui/` (au lieu de `dump-components/`). `Feature-not-found/` existe en plus des quatre features. Il n'y a pas encore de dossier `layout/` : `app-shell`, `header`, `nav`, `logo`, `button-small`, `badge-utilisateur`, `pipes`, `layout-pages`, `layout-slice` et `layout-top-bottom` sont dans `shared/`.
+**Écart actuel avec cette cible** : les dossiers du code s'appellent `Feature-<feature>/` (au lieu de `<feature>/`), `pages/` (au lieu de `smart-components/`) et `ui/` (au lieu de `dump-components/`), `models/` (au lieu de `utils/models/`). `Feature-not-found/` existe en plus des quatre features. Il n'y a pas encore de dossier `layout/` : `app-shell`, `header`, `nav`, `logo`, `button-small`, `badge-utilisateur`, `pipes`, `layout-pages`, `layout-slice` et `layout-top-bottom` sont dans `shared/`.
 
 ### 1.2 Démarrage de l'application
 
 - `src/main.ts` : `bootstrapApplication(App, appConfig)`, sans NgModule.
-- `src/app/app.config.ts` : providers globaux (`provideRouter`, `provideBrowserGlobalErrorListeners`). Aucun service de feature n'y est fourni.
+- `src/app/app.config.ts` : providers globaux (`provideRouter`, `provideBrowserGlobalErrorListeners`, `provideHttpClient`). Aucun service de feature n'y est fourni.
 - `src/app/app.ts` : composant racine `App`. `app.html` n'affiche que `<router-outlet>` (le header et une démonstration de `<app-layout-pages>` y sont en commentaire). Le header est affiché par `AppShell`, sur les pages connectées seulement (voir section 2).
 - Environnements : `src/environments/environment.ts` (développement, `production: false`) et `environment.prod.ts` (`production: true`). Les deux exposent `apiBaseUrl` (aujourd'hui la même URL d'API). Au build de production, `angular.json` remplace le premier par le second (`fileReplacements`). Le code importe toujours `environments/environment`. Aucun fichier ne l'importe encore.
 - Styles : `src/styles.css`, qui charge le CSS précompilé de Bootstrap une seule fois (`@import 'bootstrap/dist/css/bootstrap.min.css'`). `angular.json` ne référence que `src/styles.css`.
@@ -99,8 +99,21 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
 
 #### AuthService (`Feature-auth/data-access/auth-service.ts`)
 - **Type** : service (`@Service()`)
-- **Rôle** : connexion à l'API (à venir). Pour l'instant, une seule méthode `connexion()`, vide.
-- **Utilisé par** : `PageAuth`.
+- **Rôle** : appels HTTP d'authentification. Étape 1 de la progression : les méthodes renvoient l'`Observable` froid de `HttpClient`, sans `subscribe` dans le service. URL construite à partir de `environment.apiBaseUrl`.
+- **Méthodes** :
+  - `creerUnCompte(register: Register): Observable<User>` : `POST /auth/register` avec `{ email, password, nom, prenom }`. Renvoie `{ token, user }` (201), ou une erreur 400 si un champ manque ou si l'e-mail est déjà utilisé. La requête ne part qu'à l'abonnement.
+  - `connexion()` : vide pour l'instant.
+- **Utilisé par** : `PageAuth` (`connexion()`). `creerUnCompte()` n'est encore appelé par personne.
+
+#### Register (`Feature-auth/models/register.ts`)
+- **Type** : modèle (interface)
+- **Rôle** : données envoyées pour créer un compte (`RegisterInput` de l'API) : `email`, `password` (6 caractères minimum), `nom`, `prenom`, tous obligatoires.
+- **Utilisé par** : `AuthService.creerUnCompte()`.
+
+#### User (`Feature-auth/models/user.ts`)
+- **Type** : modèle (interface)
+- **Rôle** : réponse de l'API après inscription ou connexion (`AuthResponse`) : `token` (JWT) et `user` (`id`, `email`, `nom`, `prenom`, `role`).
+- **Utilisé par** : `AuthService.creerUnCompte()`.
 
 ### 3.2 entreprises
 
@@ -242,7 +255,7 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 
 ## 6. État d'avancement
 
-**Étape de la progression des données** : 1 – HTTP avec observables froids (pas encore commencée).
+**Étape de la progression des données** : 1 – HTTP avec observables froids (en cours : `AuthService.creerUnCompte()`).
 
 ### Fait
 
@@ -263,6 +276,7 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - `PageAuth` : colonne de présentation conforme à la maquette (`LayoutSlice` + `Logo`), avec ses tests. Le formulaire reste à faire.
 - Environnements : `environment.ts` / `environment.prod.ts` avec `apiBaseUrl`, remplacement automatique au build de production (`fileReplacements`).
 - API documentée depuis le Swagger dans `.claude/endpoints-et-donnees.md` (endpoints, modèles, erreurs).
+- `provideHttpClient()` dans `app.config.ts`, `AuthService.creerUnCompte()` (POST `/auth/register`, observable froid) et ses tests.
 
 ### À faire
 
