@@ -36,11 +36,22 @@ describe('Header', () => {
     expect(element.textContent).toContain('Chris Martin');
   });
 
-  it('affiche un bouton de déconnexion', () => {
-    const bouton = Array.from(element.querySelectorAll('button')).find(
+  function boutonDeconnexion(): HTMLButtonElement | undefined {
+    return Array.from(element.querySelectorAll('button')).find(
       (b) => b.textContent?.trim() === 'Déconnexion',
     );
+  }
 
-    expect(bouton).toBeDefined();
+  it('affiche un bouton de déconnexion', () => {
+    expect(boutonDeconnexion()).toBeDefined();
+  });
+
+  it('émet deconnexion quand on clique sur le bouton de déconnexion', () => {
+    let nombreDeDeconnexions = 0;
+    fixture.componentInstance.deconnexion.subscribe(() => nombreDeDeconnexions++);
+
+    boutonDeconnexion()?.click();
+
+    expect(nombreDeDeconnexions).toBe(1);
   });
 });

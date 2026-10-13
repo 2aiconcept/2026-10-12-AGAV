@@ -385,9 +385,7 @@ Même démarche pour le logo, extrait dans le composant dumb `Logo` (`shared/log
     </div>
   </div>
 
-  <button class="btn btn-sm btn-outline-light rounded-pill px-3 fw-semibold" type="button">
-    Déconnexion
-  </button>
+  <app-button-small libelle="Déconnexion" couleur="light" isOutline (action)="deconnexion.emit()" />
 </header>
 ```
 
@@ -408,3 +406,90 @@ Même démarche pour le logo, extrait dans le composant dumb `Logo` (`shared/log
 - [MDN : `<header>`](https://developer.mozilla.org/fr/docs/Web/HTML/Reference/Elements/header)
 - [MDN : aria-hidden](https://developer.mozilla.org/fr/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-hidden)
 - [Composants Angular : utiliser un composant dans un autre](https://angular.dev/guide/components/importing)
+
+### 3.4 Paramétrer un composant dumb : `input()` et `output()`
+
+**En bref** : un composant dumb reçoit ses données par des **signal inputs** (`input()`) et prévient son parent par des **outputs** (`output()`). Ces fonctions remplacent les décorateurs `@Input()` et `@Output()`.
+
+**Explication** :
+- `input.required<string>()` : le parent doit fournir la valeur. Sinon, erreur de compilation.
+- `input<string>()` : facultatif, vaut `undefined` si absent.
+- `input('primary')` : facultatif avec une valeur par défaut.
+- Un input est un signal en lecture seule : on le lit en l'appelant, `libelle()`, dans le template comme dans le code.
+- `computed()` calcule une valeur à partir d'autres signals et se met à jour tout seul. Ici, la classe Bootstrap dépend de `couleur()` et de `isOutline()`. Ce n'est pas de la gestion de données (étape 3 de la progression) : c'est de l'affichage dérivé des inputs.
+- Pour un booléen, `transform: booleanAttribute` permet d'écrire l'attribut seul (`isOutline`), comme en HTML (`disabled`).
+- Un type union (`CouleurBootstrap`) limite les valeurs acceptées : `couleur="rouge"` ne compile pas.
+- `output<void>()` déclare un événement sans donnée. On le déclenche avec `emit()`, et le parent l'écoute avec `(action)="…"`.
+
+Pièges et bonnes pratiques :
+- Ne pas nommer un output comme un événement natif (`click`) ni le préfixer par `on`. Sinon on ne sait plus si `(click)` vient du composant ou du `<button>`. Un nom trop proche pose le même problème : on avait d'abord appelé l'output `clic`, qu'on confondait à la lecture avec `(click)`. On l'a renommé `action` : le nom ne ressemble à aucun événement du DOM, et il dit que le parent choisit l'action à déclencher.
+- Le composant dumb ne décide pas de ce que fait le clic. `ButtonSmall` émet `action`, le header le transforme en `deconnexion`, et ce sera au parent qui connaît l'authentification de déconnecter réellement.
+- Sur un même élément, l'attribut `class` et la liaison `[class]` se combinent : on garde les classes fixes dans `class`, la classe calculée dans `[class]`.
+- Toujours `type="button"` sur un bouton qui n'envoie pas de formulaire.
+- Une icône à côté d'un libellé est décorative : `aria-hidden="true"`.
+
+**Dans notre appli** (`src/app/shared/button-small/button-small.ts`) :
+
+```ts
+export class ButtonSmall {
+  readonly libelle = input.required<string>();
+  readonly icone = input<string>();
+  readonly couleur = input<CouleurBootstrap>('primary');
+  readonly isOutline = input(false, { transform: booleanAttribute });
+
+  readonly action = output<void>();
+
+  protected readonly classeCouleur = computed(() =>
+    this.isOutline() ? `btn-outline-${this.couleur()}` : `btn-${this.couleur()}`,
+  );
+}
+```
+
+(`src/app/shared/button-small/button-small.html`) :
+
+```html
+<button
+  type="button"
+  class="btn btn-sm rounded-pill px-3 fw-semibold"
+  [class]="classeCouleur()"
+  (click)="action.emit()"
+>
+  @if (icone()) {
+    <span class="me-1" aria-hidden="true">{{ icone() }}</span>
+  }
+  {{ libelle() }}
+</button>
+```
+
+Utilisation dans le header, qui fait remonter le clic à son propre parent (`src/app/shared/header/header.html` et `header.ts`) :
+
+```html
+<app-button-small libelle="Déconnexion" couleur="light" isOutline (action)="deconnexion.emit()" />
+```
+
+```ts
+export class Header {
+  readonly deconnexion = output<void>();
+}
+```
+
+Autres usages possibles : `<app-button-small libelle="Nouvelle entreprise" icone="+" />` (fond plein `primary`), `<app-button-small libelle="Modifier" icone="✎" couleur="secondary" isOutline />`.
+
+Tester un dumb : on fixe les inputs avec `fixture.componentRef.setInput()`, et on s'abonne à l'output pour vérifier qu'il est émis (`src/app/shared/button-small/button-small.spec.ts`) :
+
+```ts
+it('émet action quand on clique sur le bouton', () => {
+  let nombreDActions = 0;
+  fixture.componentInstance.action.subscribe(() => nombreDActions++);
+
+  bouton().click();
+
+  expect(nombreDActions).toBe(1);
+});
+```
+
+**Docs officielles** :
+- [Inputs (signal inputs)](https://angular.dev/guide/components/inputs)
+- [Outputs (`output()`)](https://angular.dev/guide/components/outputs)
+- [computed()](https://angular.dev/guide/signals#computed-signals)
+- [Bootstrap : Buttons (`btn-outline-*`)](https://getbootstrap.com/docs/5.3/components/buttons/)

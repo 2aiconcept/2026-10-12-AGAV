@@ -1,0 +1,11 @@
+<button
+  type="button"
+  class="btn btn-sm rounded-pill px-3 fw-semibold "
+  [class]="classeCouleur()"
+  (click)="action.emit()"
+>
+  @if (icone()) {
+    <span class="me-1" aria-hidden="true">{{ icone() }}</span>
+  }
+  {{ libelle() }}
+</button>

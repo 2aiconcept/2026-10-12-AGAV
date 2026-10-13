@@ -27,7 +27,7 @@ src/app/
 
 Un élément utilisé par une seule feature reste dans cette feature. Il passe dans `shared/` dès qu'une deuxième feature en a besoin.
 
-**Écart actuel avec cette cible** : les dossiers du code s'appellent `Feature-<feature>/` (au lieu de `<feature>/`), `pages/` (au lieu de `smart-components/`) et `ui/` (au lieu de `dump-components/`). `Feature-not-found/` existe en plus des quatre features. Il n'y a pas encore de dossier `layout/` : `header`, `nav`, `logo`, `layout-pages`, `layout-slice` et `layout-top-bottom` sont dans `shared/`.
+**Écart actuel avec cette cible** : les dossiers du code s'appellent `Feature-<feature>/` (au lieu de `<feature>/`), `pages/` (au lieu de `smart-components/`) et `ui/` (au lieu de `dump-components/`). `Feature-not-found/` existe en plus des quatre features. Il n'y a pas encore de dossier `layout/` : `header`, `nav`, `logo`, `button-small`, `layout-pages`, `layout-slice` et `layout-top-bottom` sont dans `shared/`.
 
 ### 1.2 Démarrage de l'application
 
@@ -65,7 +65,7 @@ Modèle de fiche, à recopier pour chaque élément :
 - **Utilisé par** : composants ou routes qui s'en servent.
 -->
 
-Sauf mention contraire (voir `Nav`, `Logo`, `Header`, `LayoutSlice`, `LayoutTopBottom` et `LayoutPages`), les composants ci-dessous sont des squelettes générés par le CLI : template `<p>… works!</p>`, sans input, output ni logique. Les fiches seront complétées quand ils auront un comportement.
+Sauf mention contraire (voir `Nav`, `Logo`, `ButtonSmall`, `Header`, `LayoutSlice`, `LayoutTopBottom` et `LayoutPages`), les composants ci-dessous sont des squelettes générés par le CLI : template `<p>… works!</p>`, sans input, output ni logique. Les fiches seront complétées quand ils auront un comportement.
 
 ### 3.1 auth
 
@@ -133,11 +133,28 @@ Routes de la feature : `Feature-contacts/contacts.routes.ts` (voir section 2).
 ## 4. Shared
 
 #### Header (`shared/header/header.ts`)
-- **Type** : dumb (n'injecte rien : importe la directive `RouterLink` et les composants `Logo` et `Nav`)
-- **Rôle** : bandeau en haut de l'application (`<header>`, `bg-dark`). De gauche à droite : `<app-logo>` dans un lien vers `/entreprises`, le menu `<app-nav>` (qui prend la place libre avec `flex-grow-1`), le bloc utilisateur (avatar rond avec les initiales et nom) et un bouton « Déconnexion ». **HTML statique pour l'instant** : nom et initiales sont écrits en dur, et le bouton n'a pas d'action.
+- **Type** : dumb (n'injecte rien : importe la directive `RouterLink` et les composants `Logo`, `Nav` et `ButtonSmall`)
+- **Rôle** : bandeau en haut de l'application (`<header>`, `bg-dark`). De gauche à droite : `<app-logo>` dans un lien vers `/entreprises`, le menu `<app-nav>` (qui prend la place libre avec `flex-grow-1`), le bloc utilisateur (avatar rond avec les initiales et nom) et le bouton « Déconnexion » (`<app-button-small>`, contour `light`). **HTML statique pour l'instant** : nom et initiales sont écrits en dur.
 - **Style** : classes Bootstrap. Seule règle CSS : `.avatar` (taille fixe du cercle) dans `header.css`. Avatar en `bg-primary-subtle text-primary-emphasis`, masqué aux lecteurs d'écran (`aria-hidden`), puisque le nom est écrit à côté.
-- **Entrées / sorties** : aucune.
+- **Entrées** : aucune.
+- **Sorties** : `deconnexion` (`output<void>()`), émis au clic sur « Déconnexion ». Le header ne déconnecte pas lui-même : c'est au parent de réagir. Personne ne l'écoute encore.
 - **Utilisé par** : `App` (`app.html`, au-dessus du `<router-outlet>`, donc sur toutes les pages, y compris la connexion).
+
+#### ButtonSmall (`shared/button-small/button-small.ts`)
+- **Type** : dumb
+- **Rôle** : petit bouton en pilule (`btn btn-sm rounded-pill`), `type="button"`, avec une icône facultative devant le libellé. Fond plein (`btn-<couleur>`) ou contour seul (`btn-outline-<couleur>`). L'icône est un caractère (ex. : `+`, `✎`), masqué aux lecteurs d'écran (`aria-hidden`).
+- **Entrées** (signal inputs) :
+  - `libelle` (`input.required<string>()`) : texte du bouton.
+  - `icone` (`input<string>()`, facultatif) : caractère affiché devant le libellé.
+  - `couleur` (`input<CouleurBootstrap>()`, défaut `'primary'`) : couleur Bootstrap.
+  - `isOutline` (`input(false)` avec `booleanAttribute`) : contour seul si vrai. On peut écrire l'attribut sans valeur (`isOutline`).
+- **Sorties** : `action` (`output<void>()`), émis au clic. Ce nom ne ressemble pas à un événement du DOM (`click`) : `(action)` vient forcément du composant.
+- **Utilisé par** : `Header` (bouton « Déconnexion »).
+
+#### CouleurBootstrap (`shared/utils/models/couleur-bootstrap.ts`)
+- **Type** : modèle (type union)
+- **Rôle** : les 8 couleurs du thème Bootstrap (`primary`, `secondary`, `success`, `danger`, `warning`, `info`, `light`, `dark`). Empêche de passer une couleur inexistante.
+- **Utilisé par** : `ButtonSmall`.
 
 #### Logo (`shared/logo/logo.ts`)
 - **Type** : dumb (visuel seul, sans lien ni logique)
@@ -196,12 +213,14 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - `LayoutPages` (exercice, pour le moment) : cadre des pages de liste (en-tête, barre d'outils, contenu, pied de page) et ses tests.
 - `Header` : bandeau conforme à la maquette (`Logo`, menu `Nav`, utilisateur, déconnexion), en HTML statique, et ses tests.
 - `Logo` : composant dumb extrait du header, et ses tests.
+- `ButtonSmall` : bouton réutilisable (signal inputs, `output()`), utilisé pour « Déconnexion » dans le header, qui émet à son tour `deconnexion`. Avec ses tests.
 
 ### À faire
 
 - Retirer de `App` les imports inutilisés (`LayoutSlice`, `LayoutTopBottom`, `LayoutPages` : avertissements `NG8113` au build).
 - Ne pas afficher le header sur la page de connexion.
-- Brancher `Header` sur les données de l'utilisateur connecté et sur la déconnexion (feature auth).- Corriger `app.spec.ts`, qui cherche encore le `<h1>` du template par défaut.
+- Brancher `Header` sur les données de l'utilisateur connecté, et écouter son output `deconnexion` pour déconnecter (feature auth).
+- Corriger `app.spec.ts`, qui cherche encore le `<h1>` du template par défaut.
 - Aligner les dossiers sur l'architecture cible (voir l'écart en 1.1).
 - Installer et configurer Playwright (dossier `e2e/`, scripts `npm run e2e*`).
 - Créer `.claude/endpoints-et-donnees.md`.
