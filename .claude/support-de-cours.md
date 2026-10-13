@@ -351,11 +351,26 @@ Le test vérifie que l'ordre d'affichage suit le layout, même si l'hôte écrit
 
 Découper en composants : le menu était d'abord écrit dans le header. On l'a déplacé dans le composant dumb `Nav` (`shared/nav/`), et le header l'affiche avec `<app-nav>`. Le header n'importe plus `RouterLinkActive`, qui ne sert qu'au menu, mais il importe `Nav`. Les tests suivent le même découpage : `nav.spec.ts` teste les liens et `aria-current`, `header.spec.ts` vérifie seulement que le menu est présent. Une classe posée sur la balise d'un composant (`<app-nav class="flex-grow-1">`) s'applique à son élément hôte : c'est comme ça que le header lui fait prendre la place libre.
 
+Même démarche pour le logo, extrait dans le composant dumb `Logo` (`shared/logo/`). Question à se poser en découpant : qu'est-ce qui appartient au composant, et qu'est-ce qui dépend de l'endroit où on l'utilise ? Le visuel est toujours le même : il va dans `Logo`. Le lien vers `/entreprises` n'a de sens que dans le header : il reste dans le parent, autour de `<app-logo />`. On pourra ainsi afficher le même logo, non cliquable, sur la page de connexion. Le logo n'a pas de contenu projeté, donc on peut écrire la balise auto-fermante `<app-logo />`.
+
+(`src/app/shared/logo/logo.html`) :
+
+```html
+<span class="d-inline-flex align-items-center gap-2">
+  <span class="h5 mb-0 px-2 py-1 rounded-3 bg-primary text-white" aria-hidden="true">l</span>
+  <span class="h4 mb-0 text-white"
+    >liane<span class="text-primary" aria-hidden="true">.</span></span
+  >
+</span>
+```
+
 **Dans notre appli** (`src/app/shared/header/header.html`) :
 
 ```html
 <header class="d-flex align-items-center gap-4 bg-dark text-white px-4 py-2">
-  <a class="navbar-brand d-flex align-items-center gap-2 me-0" routerLink="/entreprises">…logo…</a>
+  <a class="navbar-brand me-0" routerLink="/entreprises">
+    <app-logo />
+  </a>
 
   <app-nav class="flex-grow-1"></app-nav>
 
@@ -392,3 +407,4 @@ Découper en composants : le menu était d'abord écrit dans le header. On l'a d
 - [Bootstrap : Background (`bg-*-subtle`)](https://getbootstrap.com/docs/5.3/utilities/background/)
 - [MDN : `<header>`](https://developer.mozilla.org/fr/docs/Web/HTML/Reference/Elements/header)
 - [MDN : aria-hidden](https://developer.mozilla.org/fr/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-hidden)
+- [Composants Angular : utiliser un composant dans un autre](https://angular.dev/guide/components/importing)

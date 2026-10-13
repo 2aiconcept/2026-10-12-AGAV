@@ -27,13 +27,13 @@ src/app/
 
 Un élément utilisé par une seule feature reste dans cette feature. Il passe dans `shared/` dès qu'une deuxième feature en a besoin.
 
-**Écart actuel avec cette cible** : les dossiers du code s'appellent `Feature-<feature>/` (au lieu de `<feature>/`), `pages/` (au lieu de `smart-components/`) et `ui/` (au lieu de `dump-components/`). `Feature-not-found/` existe en plus des quatre features. Il n'y a pas encore de dossier `layout/` : `header`, `nav`, `layout-pages`, `layout-slice` et `layout-top-bottom` sont dans `shared/`.
+**Écart actuel avec cette cible** : les dossiers du code s'appellent `Feature-<feature>/` (au lieu de `<feature>/`), `pages/` (au lieu de `smart-components/`) et `ui/` (au lieu de `dump-components/`). `Feature-not-found/` existe en plus des quatre features. Il n'y a pas encore de dossier `layout/` : `header`, `nav`, `logo`, `layout-pages`, `layout-slice` et `layout-top-bottom` sont dans `shared/`.
 
 ### 1.2 Démarrage de l'application
 
 - `src/main.ts` : `bootstrapApplication(App, appConfig)`, sans NgModule.
 - `src/app/app.config.ts` : providers globaux (`provideRouter`, `provideBrowserGlobalErrorListeners`). Aucun service de feature n'y est fourni.
-- `src/app/app.ts` : composant racine `App`. Il devrait afficher `<router-outlet>`, mais pour l'instant `app.html` affiche `<app-header>` puis `<app-layout-pages>` avec un contenu provisoire (démonstration en cours, voir « À faire »).
+- `src/app/app.ts` : composant racine `App`. `app.html` affiche `<app-header>` sur toutes les pages, puis `<router-outlet>`. Une démonstration de `<app-layout-pages>` y reste en commentaire.
 - Styles : `src/styles.css`, qui charge le CSS précompilé de Bootstrap une seule fois (`@import 'bootstrap/dist/css/bootstrap.min.css'`). `angular.json` ne référence que `src/styles.css`.
 
 ## 2. Routes
@@ -65,7 +65,7 @@ Modèle de fiche, à recopier pour chaque élément :
 - **Utilisé par** : composants ou routes qui s'en servent.
 -->
 
-Sauf mention contraire (voir `Nav`, `Header`, `LayoutSlice`, `LayoutTopBottom` et `LayoutPages`), les composants ci-dessous sont des squelettes générés par le CLI : template `<p>… works!</p>`, sans input, output ni logique. Les fiches seront complétées quand ils auront un comportement.
+Sauf mention contraire (voir `Nav`, `Logo`, `Header`, `LayoutSlice`, `LayoutTopBottom` et `LayoutPages`), les composants ci-dessous sont des squelettes générés par le CLI : template `<p>… works!</p>`, sans input, output ni logique. Les fiches seront complétées quand ils auront un comportement.
 
 ### 3.1 auth
 
@@ -133,11 +133,17 @@ Routes de la feature : `Feature-contacts/contacts.routes.ts` (voir section 2).
 ## 4. Shared
 
 #### Header (`shared/header/header.ts`)
-- **Type** : dumb (n'injecte rien : importe la directive `RouterLink` pour le logo et le composant `Nav`)
-- **Rôle** : bandeau en haut de l'application (`<header>`, `bg-dark`). De gauche à droite : le logo (lien vers `/entreprises`), le menu `<app-nav>` (qui prend la place libre avec `flex-grow-1`), le bloc utilisateur (avatar rond avec les initiales et nom) et un bouton « Déconnexion ». **HTML statique pour l'instant** : nom et initiales sont écrits en dur, et le bouton n'a pas d'action.
+- **Type** : dumb (n'injecte rien : importe la directive `RouterLink` et les composants `Logo` et `Nav`)
+- **Rôle** : bandeau en haut de l'application (`<header>`, `bg-dark`). De gauche à droite : `<app-logo>` dans un lien vers `/entreprises`, le menu `<app-nav>` (qui prend la place libre avec `flex-grow-1`), le bloc utilisateur (avatar rond avec les initiales et nom) et un bouton « Déconnexion ». **HTML statique pour l'instant** : nom et initiales sont écrits en dur, et le bouton n'a pas d'action.
 - **Style** : classes Bootstrap. Seule règle CSS : `.avatar` (taille fixe du cercle) dans `header.css`. Avatar en `bg-primary-subtle text-primary-emphasis`, masqué aux lecteurs d'écran (`aria-hidden`), puisque le nom est écrit à côté.
 - **Entrées / sorties** : aucune.
-- **Utilisé par** : `App` (`app.html`, démonstration en cours).
+- **Utilisé par** : `App` (`app.html`, au-dessus du `<router-outlet>`, donc sur toutes les pages, y compris la connexion).
+
+#### Logo (`shared/logo/logo.ts`)
+- **Type** : dumb (visuel seul, sans lien ni logique)
+- **Rôle** : affiche le logo de la marque : la lettre « l » dans un carré `bg-primary` et le nom « liane » suivi d'un point `text-primary`. La lettre et le point sont décoratifs (`aria-hidden`). Prévu pour un fond sombre (texte blanc). Le lien éventuel est posé par le parent, pour réutiliser le logo là où il ne doit pas être cliquable (ex. : page de connexion).
+- **Entrées / sorties** : aucune.
+- **Utilisé par** : `Header` (dans un `<a routerLink="/entreprises">`).
 
 #### Nav (`shared/nav/nav.ts`)
 - **Type** : dumb (n'injecte rien : utilise seulement les directives `RouterLink` et `RouterLinkActive` dans le template)
@@ -147,13 +153,13 @@ Routes de la feature : `Feature-contacts/contacts.routes.ts` (voir section 2).
 
 #### LayoutPages (`shared/layout-pages/layout-pages.ts`)
 
-> **Exercice, pour le moment** : ce composant est un corrigé d'exercice. Il n'est utilisé par aucune page (seulement dans la démonstration de `app.html`) et peut encore changer.
+> **Exercice, pour le moment** : ce composant est un corrigé d'exercice. Il n'est utilisé par aucune page et peut encore changer.
 
 - **Type** : dumb (mise en page par projection de contenu)
 - **Rôle** : cadre commun des pages de liste (entreprises, contacts, opportunités). C'est une carte Bootstrap (`card shadow-sm`) dans un `container`, découpée en quatre zones séparées par une bordure : en-tête, barre d'outils, contenu (`card-body p-3`) et pied de page. Ne pose aucun repère (`<main>`…).
 - **Entrées** : quatre `ng-content`, dans cet ordre d'affichage : `[pageHeader]` (titre et action principale), `[pageToolbar]` (recherche, filtres), contenu par défaut (tout ce qui n'a pas d'attribut de slot, ex. : le tableau), `[pageFooter]` (compteur, pagination). Une zone sans contenu reste affichée, vide.
 - **Sorties** : aucune.
-- **Utilisé par** : `App` (`app.html`, démonstration en cours, contenu provisoire).
+- **Utilisé par** : personne pour l'instant (importé dans `App`, démonstration en commentaire dans `app.html`).
 
 #### LayoutSlice (`shared/layout-slice/layout-slice.ts`)
 - **Type** : dumb (mise en page par projection de contenu)
@@ -188,11 +194,13 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - `LayoutSlice` : mise en page en deux colonnes avec `ng-content` (`slotStart` / `slotEnd`) et ses tests.
 - `LayoutTopBottom` : mise en page en deux blocs empilés (haut / bas, 50 % de la hauteur chacun), mêmes slots, et ses tests.
 - `LayoutPages` (exercice, pour le moment) : cadre des pages de liste (en-tête, barre d'outils, contenu, pied de page) et ses tests.
-- `Header` : bandeau conforme à la maquette (logo, menu `Nav`, utilisateur, déconnexion), en HTML statique, et ses tests.
+- `Header` : bandeau conforme à la maquette (`Logo`, menu `Nav`, utilisateur, déconnexion), en HTML statique, et ses tests.
+- `Logo` : composant dumb extrait du header, et ses tests.
 
 ### À faire
 
-- Rétablir `<router-outlet>` dans `app.html` (en commentaire, remplacé par `<app-header>` et `<app-layout-pages>` pour une démonstration) et retirer de `App` les imports inutilisés (`LayoutSlice`, `LayoutTopBottom` : avertissements `NG8113` au build).
+- Retirer de `App` les imports inutilisés (`LayoutSlice`, `LayoutTopBottom`, `LayoutPages` : avertissements `NG8113` au build).
+- Ne pas afficher le header sur la page de connexion.
 - Brancher `Header` sur les données de l'utilisateur connecté et sur la déconnexion (feature auth).- Corriger `app.spec.ts`, qui cherche encore le `<h1>` du template par défaut.
 - Aligner les dossiers sur l'architecture cible (voir l'écart en 1.1).
 - Installer et configurer Playwright (dossier `e2e/`, scripts `npm run e2e*`).
