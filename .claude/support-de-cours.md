@@ -221,6 +221,44 @@ it('signale le lien de la page courante avec aria-current', async () => {
 - [Bootstrap : Navs](https://getbootstrap.com/docs/5.3/components/navs-tabs/)
 - [MDN : aria-current](https://developer.mozilla.org/fr/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-current)
 
+### 2.4 Une coque pour certaines pages : routes enfants et `<router-outlet>` imbriqué
+
+**En bref** : une route parente affiche un composant « coque » (header…), et ses routes enfants s'affichent dans le `<router-outlet>` de cette coque.
+
+**Explication** : la page de connexion ne doit pas afficher le header, mais les pages de l'application si. Plutôt que de cacher le header avec un `@if` selon l'URL, on range les routes : `/connexion` et la page introuvable au premier niveau, et les pages de l'application en `children` d'une route qui affiche `AppShell`. `App` n'a plus qu'un `<router-outlet>`, et `AppShell` contient le header puis son propre `<router-outlet>`, dans un `<main>`. `{ path: '', redirectTo: 'entreprises', pathMatch: 'full' }` envoie `/` vers la liste des entreprises. `pathMatch: 'full'` est obligatoire pour une redirection depuis un chemin vide, sinon elle s'appliquerait à toutes les URL. Le piège pour les tests : un composant qui contient un `<router-outlet>` ou des `routerLink` a besoin de `provideRouter([])` dans son spec.
+
+**Dans notre appli** (`src/app/app.routes.ts`) :
+
+```ts
+{
+  path: '',
+  component: AppShell,
+  children: [
+    {
+      path: 'entreprises',
+      title: 'Entreprises – Mini-CRM',
+      loadComponent: () =>
+        import('./Feature-entreprises/pages/page-entreprises/page-entreprises'),
+    },
+    // contacts, opportunites…
+    { path: '', redirectTo: 'entreprises', pathMatch: 'full' },
+  ],
+},
+```
+
+(`src/app/shared/app-shell/app-shell.html`) :
+
+```html
+<app-header />
+<main>
+  <router-outlet></router-outlet>
+</main>
+```
+
+**Docs officielles** :
+- [Routes enfants (nested routes)](https://angular.dev/guide/routing/define-routes#nested-routes)
+- [Redirections](https://angular.dev/guide/routing/redirecting-routes)
+
 ## 3. Les composants
 
 ### 3.1 Projeter du contenu avec `ng-content` et `select`
@@ -234,7 +272,7 @@ it('signale le lien de la page courante avec aria-current', async () => {
 ```html
 <div class="container-fluid">
   <div class="row min-vh-100">
-    <div class="col-md-6 d-flex flex-column bg-dark text-white p-4 p-lg-5">
+    <div class="col-md-6 d-flex flex-column bg-dark text-white p-4 p-lg-5" data-bs-theme="dark">
       <ng-content select="[slotStart]" />
     </div>
     <div
@@ -246,12 +284,17 @@ it('signale le lien de la page courante avec aria-current', async () => {
 </div>
 ```
 
-Utilisation dans une page :
+Utilisation dans la page de connexion. Plusieurs éléments peuvent viser le même slot : ils s'affichent dans l'ordre où la page les écrit, et un composant peut lui-même porter l'attribut (`<app-logo slotStart />`). Mise en page de la colonne en 3.6 (`src/app/Feature-auth/pages/page-auth/page-auth.html`) :
 
 ```html
 <app-layout-slice>
-  <div slotStart>…présentation…</div>
-  <div slotEnd>…formulaire…</div>
+  <app-logo slotStart />
+
+  <div slotStart class="my-auto py-5">…accroche, titre, sous-titre…</div>
+
+  <p slotStart class="mb-0 small text-body-secondary">© 2026 Liane</p>
+
+  <div slotEnd>formulaire</div>
 </app-layout-slice>
 ```
 
@@ -552,3 +595,33 @@ it('garde au plus deux initiales', () => {
 **Docs officielles** :
 - [Pipes : créer un pipe personnalisé](https://angular.dev/guide/templates/pipes#creating-custom-pipes)
 - [Variables locales avec `@let`](https://angular.dev/guide/templates/variables#local-template-variables-with-let)
+
+### 3.6 Placer et colorer du contenu sur un fond sombre : `my-auto` et `data-bs-theme`
+
+**En bref** : dans une colonne flex, `my-auto` centre un bloc verticalement entre ses voisins. `data-bs-theme="dark"` passe une zone en thème sombre : les couleurs « texte » de Bootstrap y deviennent lisibles sur fond foncé.
+
+**Explication** :
+- **Placement** : la colonne gauche de `LayoutSlice` est en `d-flex flex-column`. Avec trois enfants (logo, texte, copyright), `my-auto` sur celui du milieu prend tout l'espace libre au-dessus et en dessous. Le logo reste en haut, le copyright en bas, le texte au centre, sans CSS. (`mt-auto` seul pousserait un bloc tout en bas.)
+- **Couleurs** : `text-body-secondary` et `text-primary-emphasis` sont prévues pour un fond clair. Sur `bg-dark`, elles seraient trop sombres. Posé sur la colonne, `data-bs-theme="dark"` (mode couleur de Bootstrap 5.3) redéfinit les variables CSS de cette zone seulement : `text-body-secondary` devient un gris clair et `text-primary-emphasis` un bleu clair, tous deux au contraste AA.
+- **Le piège** : une couleur « vive » sur fond sombre (`text-primary`, `text-danger`) donne souvent un contraste insuffisant pour du petit texte. On vérifie le contraste, et on préfère les variantes `-emphasis` du thème sombre.
+- **Réutilisation** : le logo n'est pas recopié, on réutilise le composant `Logo`, non cliquable ici.
+
+**Dans notre appli** (`src/app/Feature-auth/pages/page-auth/page-auth.html`) :
+
+```html
+<div slotStart class="my-auto py-5">
+  <p class="mb-3 small fw-bold text-uppercase text-primary-emphasis">Mini-CRM</p>
+  <h1 class="display-5 fw-bold mb-3 w-75">
+    Vos entreprises, contacts et opportunités, au même endroit.
+  </h1>
+  <p class="mb-0 text-body-secondary">
+    Connectez-vous pour retrouver votre portefeuille commercial.
+  </p>
+</div>
+```
+
+**Docs officielles** :
+- [Bootstrap : Color modes (`data-bs-theme`)](https://getbootstrap.com/docs/5.3/customize/color-modes/)
+- [Bootstrap : Auto margins en flex](https://getbootstrap.com/docs/5.3/utilities/flex/#auto-margins)
+- [Bootstrap : Colors (`text-body-secondary`, `text-*-emphasis`)](https://getbootstrap.com/docs/5.3/utilities/colors/)
+- [WCAG 2.2 : contraste minimum (1.4.3)](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)

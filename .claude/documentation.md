@@ -27,28 +27,34 @@ src/app/
 
 Un élément utilisé par une seule feature reste dans cette feature. Il passe dans `shared/` dès qu'une deuxième feature en a besoin.
 
-**Écart actuel avec cette cible** : les dossiers du code s'appellent `Feature-<feature>/` (au lieu de `<feature>/`), `pages/` (au lieu de `smart-components/`) et `ui/` (au lieu de `dump-components/`). `Feature-not-found/` existe en plus des quatre features. Il n'y a pas encore de dossier `layout/` : `header`, `nav`, `logo`, `button-small`, `badge-utilisateur`, `pipes`, `layout-pages`, `layout-slice` et `layout-top-bottom` sont dans `shared/`.
+**Écart actuel avec cette cible** : les dossiers du code s'appellent `Feature-<feature>/` (au lieu de `<feature>/`), `pages/` (au lieu de `smart-components/`) et `ui/` (au lieu de `dump-components/`). `Feature-not-found/` existe en plus des quatre features. Il n'y a pas encore de dossier `layout/` : `app-shell`, `header`, `nav`, `logo`, `button-small`, `badge-utilisateur`, `pipes`, `layout-pages`, `layout-slice` et `layout-top-bottom` sont dans `shared/`.
 
 ### 1.2 Démarrage de l'application
 
 - `src/main.ts` : `bootstrapApplication(App, appConfig)`, sans NgModule.
 - `src/app/app.config.ts` : providers globaux (`provideRouter`, `provideBrowserGlobalErrorListeners`). Aucun service de feature n'y est fourni.
-- `src/app/app.ts` : composant racine `App`. `app.html` affiche `<app-header>` sur toutes les pages, puis `<router-outlet>`. Une démonstration de `<app-layout-pages>` y reste en commentaire.
+- `src/app/app.ts` : composant racine `App`. `app.html` n'affiche que `<router-outlet>` (le header et une démonstration de `<app-layout-pages>` y sont en commentaire). Le header est affiché par `AppShell`, sur les pages connectées seulement (voir section 2).
 - Styles : `src/styles.css`, qui charge le CSS précompilé de Bootstrap une seule fois (`@import 'bootstrap/dist/css/bootstrap.min.css'`). `angular.json` ne référence que `src/styles.css`.
 
 ## 2. Routes
 
-Déclarées dans `src/app/app.routes.ts`. Toutes les pages sont chargées en lazy loading (`loadComponent`, ou `loadChildren` pour une feature à plusieurs pages) et exportées par défaut (`export default class`). Chaque route a un `title` (titre de l'onglet, annoncé par les lecteurs d'écran).
+Déclarées dans `src/app/app.routes.ts`. Les pages sont chargées en lazy loading (`loadComponent`, ou `loadChildren` pour une feature à plusieurs pages) et exportées par défaut (`export default class`). Chaque page a un `title` (titre de l'onglet, annoncé par les lecteurs d'écran).
+
+Deux familles de pages :
+- **hors coque** : `/connexion` et la page introuvable, affichées seules (sans header) ;
+- **dans la coque `AppShell`** : la route `''` affiche `AppShell` (chargé directement, pas en lazy loading), qui contient le header et un `<router-outlet>` enfant pour les pages de l'application.
 
 | Chemin                | Composant            | Feature        | Guard | Description                          |
 | --------------------- | -------------------- | -------------- | ----- | ------------------------------------ |
-| `''`                  | `PageAuth`           | auth           | —     | Connexion                            |
+| `connexion`           | `PageAuth`           | auth           | —     | Connexion (hors coque)               |
+| `''`                  | `AppShell`           | shared         | —     | Coque : header + pages enfants ci-dessous |
+| `''` (enfant)         | —                    | —              | —     | Redirige vers `entreprises`          |
 | `entreprises`         | `PageEntreprises`    | entreprises    | —     | Liste des entreprises                |
 | `contacts`            | `PageContacts`       | contacts       | —     | Liste des contacts (`contacts.routes.ts`) |
 | `contacts/ajouter`    | `PageAjouterContact` | contacts       | —     | Création d'un contact                |
 | `contacts/editer/:id` | `PageEditerContact`  | contacts       | —     | Modification d'un contact            |
 | `opportunites`        | `PageOpportunites`   | opportunites   | —     | Liste des opportunités               |
-| `**`                  | `PageNotFound`       | not-found      | —     | Page introuvable                     |
+| `**`                  | `PageNotFound`       | not-found      | —     | Page introuvable (hors coque)        |
 
 Les routes de la feature contacts sont dans `src/app/Feature-contacts/contacts.routes.ts`, exportées par défaut et chargées par `loadChildren`.
 
@@ -65,14 +71,14 @@ Modèle de fiche, à recopier pour chaque élément :
 - **Utilisé par** : composants ou routes qui s'en servent.
 -->
 
-Sauf mention contraire (voir `Nav`, `Logo`, `ButtonSmall`, `BadgeUtilisateur`, `Header`, `LayoutSlice`, `LayoutTopBottom` et `LayoutPages`), les composants ci-dessous sont des squelettes générés par le CLI : template `<p>… works!</p>`, sans input, output ni logique. Les fiches seront complétées quand ils auront un comportement.
+Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUtilisateur`, `Header`, `AppShell`, `LayoutSlice`, `LayoutTopBottom` et `LayoutPages`), les composants ci-dessous sont des squelettes générés par le CLI : template `<p>… works!</p>`, sans input, output ni logique. Les fiches seront complétées quand ils auront un comportement.
 
 ### 3.1 auth
 
 #### PageAuth (`Feature-auth/pages/page-auth/page-auth.ts`)
 - **Type** : smart
-- **Rôle** : page de connexion.
-- **Utilisé par** : route `''`.
+- **Rôle** : page de connexion, en deux colonnes avec `LayoutSlice`. Colonne gauche (`slotStart`) : `<app-logo>` en haut, au centre (`my-auto`) l'accroche « Mini-CRM », le titre `h1` et l'invitation à se connecter, en bas le copyright. Colonne droite (`slotEnd`) : texte provisoire « formulaire » (le formulaire est à venir). Uniquement des classes Bootstrap ; les gris et l'accent viennent du thème sombre de la colonne (`text-body-secondary`, `text-primary-emphasis`).
+- **Utilisé par** : route `connexion`.
 
 #### FormAuth (`Feature-auth/ui/form-auth/form-auth.ts`)
 - **Type** : dumb
@@ -139,7 +145,13 @@ Routes de la feature : `Feature-contacts/contacts.routes.ts` (voir section 2).
 - **Déconnexion** : le clic appelle la méthode `logout()` du header, encore vide (l'appel au service d'authentification est en commentaire). L'output `deconnexion` a été mis en commentaire.
 - **Style** : uniquement des classes Bootstrap, `header.css` est vide.
 - **Entrées / sorties** : aucune.
-- **Utilisé par** : `App` (`app.html`, au-dessus du `<router-outlet>`, donc sur toutes les pages, y compris la connexion).
+- **Utilisé par** : `AppShell` (donc sur les pages de l'application, pas sur la connexion).
+
+#### AppShell (`shared/app-shell/app-shell.ts`)
+- **Type** : coque de mise en page routée (n'injecte rien)
+- **Rôle** : affiche `<app-header>` puis un `<main>` qui contient un `<router-outlet>` pour les pages enfants (entreprises, contacts, opportunités). Permet d'avoir le header sur ces pages et pas sur `/connexion`.
+- **Entrées / sorties** : aucune.
+- **Utilisé par** : route `''` de `app.routes.ts` (chargée directement, pas en lazy loading).
 
 #### ButtonSmall (`shared/button-small/button-small.ts`)
 - **Type** : dumb
@@ -180,7 +192,7 @@ Routes de la feature : `Feature-contacts/contacts.routes.ts` (voir section 2).
 - **Type** : dumb (visuel seul, sans lien ni logique)
 - **Rôle** : affiche le logo de la marque : la lettre « l » dans un carré `bg-primary` et le nom « liane » suivi d'un point `text-primary`. La lettre et le point sont décoratifs (`aria-hidden`). Prévu pour un fond sombre (texte blanc). Le lien éventuel est posé par le parent, pour réutiliser le logo là où il ne doit pas être cliquable (ex. : page de connexion).
 - **Entrées / sorties** : aucune.
-- **Utilisé par** : `Header` (dans un `<a routerLink="/entreprises">`).
+- **Utilisé par** : `Header` (dans un `<a routerLink="/entreprises">`), `PageAuth` (non cliquable).
 
 #### Nav (`shared/nav/nav.ts`)
 - **Type** : dumb (n'injecte rien : utilise seulement les directives `RouterLink` et `RouterLinkActive` dans le template)
@@ -200,10 +212,10 @@ Routes de la feature : `Feature-contacts/contacts.routes.ts` (voir section 2).
 
 #### LayoutSlice (`shared/layout-slice/layout-slice.ts`)
 - **Type** : dumb (mise en page par projection de contenu)
-- **Rôle** : coupe l'écran en deux colonnes sur toute la hauteur (`min-vh-100`) : à gauche un panneau sombre (`bg-dark text-white`, en colonne flex), à droite un panneau clair (`bg-body-tertiary`) qui centre son contenu. Les colonnes s'empilent sous le breakpoint `md`. Ne pose aucun repère (`<main>`…) : c'est à la page de le faire.
+- **Rôle** : coupe l'écran en deux colonnes sur toute la hauteur (`min-vh-100`) : à gauche un panneau sombre (`bg-dark text-white`, en colonne flex, avec `data-bs-theme="dark"` : les utilitaires `text-body-secondary`, `text-*-emphasis`… y prennent leurs couleurs lisibles sur fond sombre), à droite un panneau clair (`bg-body-tertiary`) qui centre son contenu. Les colonnes s'empilent sous le breakpoint `md`. Ne pose aucun repère (`<main>`…) : c'est à la page de le faire.
 - **Entrées** : deux `ng-content` : `[slotStart]` (colonne de gauche) et `[slotEnd]` (colonne de droite). Un contenu sans l'un de ces attributs n'est pas affiché.
 - **Sorties** : aucune.
-- **Utilisé par** : personne pour l'instant (importé dans `App` mais plus affiché). Prévu pour la page de connexion et d'autres pages en deux parties.
+- **Utilisé par** : `PageAuth`.
 
 #### LayoutTopBottom (`shared/layout-top-bottom/layout-top-bottom.ts`)
 - **Type** : dumb (mise en page par projection de contenu)
@@ -235,11 +247,14 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - `Logo` : composant dumb extrait du header, et ses tests.
 - `ButtonSmall` : bouton réutilisable (signal inputs, `output()`), utilisé pour « Déconnexion » dans le header. Avec ses tests.
 - `BadgeUtilisateur` et le pipe `initiales` : bloc utilisateur extrait du header, avec leurs tests.
+- Routes : `/connexion` hors coque, pages de l'application dans la coque `AppShell` (header + `<router-outlet>` enfant).
+- `PageAuth` : colonne de présentation conforme à la maquette (`LayoutSlice` + `Logo`), avec ses tests. Le formulaire reste à faire.
 
 ### À faire
 
 - Retirer de `App` les imports inutilisés (`LayoutSlice`, `LayoutTopBottom`, `LayoutPages` : avertissements `NG8113` au build).
-- Ne pas afficher le header sur la page de connexion.
+- Corriger `app-shell.spec.ts` : `AppShell` ne se crée pas sans `provideRouter()` (erreur « No provider found for `ActivatedRoute` »).
+- Remplacer le texte provisoire « formulaire » de `PageAuth` par `FormAuth`.
 - Brancher `Header` sur l'utilisateur connecté et faire déconnecter réellement `logout()` (feature auth).
 - Corriger `app.spec.ts` : il cherche encore le `<h1>` du template par défaut, et `App` ne se crée plus sans `provideRouter()` (le header contient des `routerLink`).
 - Aligner les dossiers sur l'architecture cible (voir l'écart en 1.1).

@@ -1,25 +1,36 @@
 import { Routes } from '@angular/router';
+import { AppShell } from './shared/app-shell/app-shell';
 
 export const routes: Routes = [
   {
-    path: '',
+    path: 'connexion',
     title: 'Connexion – Mini-CRM',
     loadComponent: () => import('./Feature-auth/pages/page-auth/page-auth'),
   },
   {
-    path: 'entreprises',
-    title: 'Entreprises – Mini-CRM',
-    loadComponent: () => import('./Feature-entreprises/pages/page-entreprises/page-entreprises'),
+    path: '',
+    component: AppShell,
+    children: [
+      {
+        path: 'entreprises',
+        title: 'Entreprises – Mini-CRM',
+        loadComponent: () =>
+          import('./Feature-entreprises/pages/page-entreprises/page-entreprises'),
+      },
+      {
+        path: 'contacts',
+        loadChildren: () => import('./Feature-contacts/contacts.routes'),
+      },
+      {
+        path: 'opportunites',
+        title: 'Opportunités – Mini-CRM',
+        loadComponent: () =>
+          import('./Feature-opportunites/pages/page-opportunites/page-opportunites'),
+      },
+      { path: '', redirectTo: 'entreprises', pathMatch: 'full' },
+    ],
   },
-  {
-    path: 'contacts',
-    loadChildren: () => import('./Feature-contacts/contacts.routes'),
-  },
-  {
-    path: 'opportunites',
-    title: 'Opportunités – Mini-CRM',
-    loadComponent: () => import('./Feature-opportunites/pages/page-opportunites/page-opportunites'),
-  },
+
   {
     path: '**',
     title: 'Page introuvable – Mini-CRM',
