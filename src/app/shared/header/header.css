@@ -1,0 +1,5 @@
+/* Bootstrap n'a pas de taille fixe pour un cercle : largeur = hauteur. */
+.avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+}

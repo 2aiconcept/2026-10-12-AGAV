@@ -297,7 +297,7 @@ Le même principe sert pour une mise en page en haut / bas. On garde les **même
 
 **En bref** : un `<ng-content />` sans `select` reçoit tout ce qui n'est pris par aucun slot nommé. Il sert pour le contenu principal.
 
-**Explication** : dans une page de liste, l'en-tête, la barre d'outils et le pied de page sont des zones secondaires : on les marque avec un attribut (`pageHeader`, `pageToolbar`, `pageFooter`). Le contenu principal (le tableau) n'a pas besoin d'attribut, il tombe dans le `ng-content` par défaut. L'ordre d'affichage est celui du **template du layout**, pas celui de la page : la page peut écrire ses blocs dans n'importe quel ordre. Le piège : il ne doit y avoir qu'un seul `ng-content` sans `select`. Autre piège : une zone sans contenu reste affichée avec ses bordures. Côté Bootstrap, la carte (`card`, `card-header`, `card-body`, `card-footer`) donne le cadre, les séparateurs et les coins arrondis sans CSS. `p-0` sur le corps laisse un tableau toucher les bords de la carte.
+**Explication** : dans une page de liste, l'en-tête, la barre d'outils et le pied de page sont des zones secondaires : on les marque avec un attribut (`pageHeader`, `pageToolbar`, `pageFooter`). Le contenu principal (le tableau) n'a pas besoin d'attribut, il tombe dans le `ng-content` par défaut. L'ordre d'affichage est celui du **template du layout**, pas celui de la page : la page peut écrire ses blocs dans n'importe quel ordre. Le piège : il ne doit y avoir qu'un seul `ng-content` sans `select`. Autre piège : une zone sans contenu reste affichée avec ses bordures. Côté Bootstrap, la carte (`card`, `card-header`, `card-body`, `card-footer`) donne le cadre, les séparateurs et les coins arrondis sans CSS. Les marges intérieures se règlent zone par zone avec `p-*` (`p-3` sur le corps ; `p-0` laisserait un tableau toucher les bords de la carte).
 
 **Dans notre appli** (`src/app/shared/layout-pages/layout-pages.html`) :
 
@@ -310,7 +310,7 @@ Le même principe sert pour une mise en page en haut / bas. On garde les **même
     <div class="border-bottom p-3">
       <ng-content select="[pageToolbar]" />
     </div>
-    <div class="card-body p-0">
+    <div class="card-body p-3">
       <ng-content />
     </div>
     <div class="card-footer bg-body px-4 py-3">
@@ -342,3 +342,52 @@ Le test vérifie que l'ordre d'affichage suit le layout, même si l'hôte écrit
 **Docs officielles** :
 - [Projection de contenu avec ng-content](https://angular.dev/guide/components/content-projection)
 - [Bootstrap : Card](https://getbootstrap.com/docs/5.3/components/card/)
+
+### 3.3 Reproduire une maquette avec Bootstrap, CSS custom au minimum
+
+**En bref** : on construit un écran avec les classes utilitaires de Bootstrap (flex, espacements, couleurs). On n'écrit du CSS que pour ce que Bootstrap ne sait pas faire.
+
+**Explication** : pour une barre horizontale, `d-flex align-items-center gap-4` aligne les blocs et les espace sans CSS. `flex-grow-1` sur la zone centrale pousse le reste à droite. Bouton en pilule : `btn btn-outline-light rounded-pill`. Texte secondaire sur fond sombre : `text-white-50`. Avant d'écrire une règle CSS, on vérifie qu'aucune classe ne le fait. Ici, seul l'avatar en a besoin : un cercle demande une largeur égale à la hauteur, et Bootstrap n'a pas de taille fixe. On commente le « pourquoi » de cette règle. Accessibilité : le bandeau est un `<header>`, repère que les lecteurs d'écran listent. Les initiales de l'avatar sont masquées (`aria-hidden="true"`), car le nom complet est écrit juste à côté, et sinon il serait lu deux fois. On commence en **HTML statique** (nom, rôle écrits en dur) pour valider le design. Les données arriveront avec la feature auth.
+
+**Dans notre appli** (`src/app/shared/header/header.html`) :
+
+```html
+<header class="d-flex align-items-center gap-4 bg-dark text-white px-4 py-2">
+  <a class="navbar-brand d-flex align-items-center gap-2 me-0" routerLink="/entreprises">…logo…</a>
+
+  <div class="flex-grow-1">nav item</div>
+
+  <div class="d-flex align-items-center gap-2">
+    <span
+      class="avatar d-flex align-items-center justify-content-center rounded-circle fw-bold bg-primary-subtle text-primary-emphasis"
+      aria-hidden="true"
+      >CM</span
+    >
+    <div class="lh-sm">
+      <div class="fw-semibold">Chris Martin</div>
+      <div class="small text-white-50">Commercial</div>
+    </div>
+  </div>
+
+  <button class="btn btn-sm btn-outline-light rounded-pill px-3 fw-semibold" type="button">
+    Déconnexion
+  </button>
+</header>
+```
+
+(`src/app/shared/header/header.css`) :
+
+```css
+/* Bootstrap n'a pas de taille fixe pour un cercle : largeur = hauteur. */
+.avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+```
+
+**Docs officielles** :
+- [Bootstrap : Flex](https://getbootstrap.com/docs/5.3/utilities/flex/)
+- [Bootstrap : Buttons](https://getbootstrap.com/docs/5.3/components/buttons/)
+- [Bootstrap : Background (`bg-*-subtle`)](https://getbootstrap.com/docs/5.3/utilities/background/)
+- [MDN : `<header>`](https://developer.mozilla.org/fr/docs/Web/HTML/Reference/Elements/header)
+- [MDN : aria-hidden](https://developer.mozilla.org/fr/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-hidden)

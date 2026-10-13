@@ -3,12 +3,13 @@ import { RouterOutlet } from '@angular/router';
 import { LayoutSlice } from './shared/layout-slice/layout-slice';
 import { LayoutTopBottom } from './shared/layout-top-bottom/layout-top-bottom';
 import { LayoutPages } from './shared/layout-pages/layout-pages';
+import { Header } from './shared/header/header';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, LayoutSlice, LayoutTopBottom, LayoutPages],
+  imports: [RouterOutlet, LayoutSlice, LayoutTopBottom, LayoutPages, Header],
   templateUrl: './app.html',
-  styleUrl: './app.css'
+  styleUrl: './app.css',
 })
 export class App {
   protected readonly title = signal('mini-crm');
