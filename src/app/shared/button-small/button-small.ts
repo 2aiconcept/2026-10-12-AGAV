@@ -14,6 +14,7 @@ export class ButtonSmall {
   readonly icone = input<string>();
   // bind with bootstrap color name
   readonly couleur = input<CouleurBootstrap>('primary');
+  readonly btnSize = input<string>('btn-md');
 
   // use isOutline attribute in parent component on button instance or not
   readonly isOutline = input(false, { transform: booleanAttribute });
@@ -22,7 +23,8 @@ export class ButtonSmall {
 
   // Computed to use prefixe btn or btn-outline prefix on class bootstrap
   protected readonly classeCouleur = computed(() =>
-    this.isOutline() ? `btn-outline-${this.couleur()}` : `btn-${this.couleur()}`,
+    this.isOutline()
+      ? `btn-outline-${this.couleur()} ${this.btnSize()}`
+      : `btn-${this.couleur()} ${this.btnSize()}`,
   );
 }
-
