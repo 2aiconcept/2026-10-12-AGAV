@@ -133,17 +133,17 @@ Routes de la feature : `Feature-contacts/contacts.routes.ts` (voir section 2).
 ## 4. Shared
 
 #### Header (`shared/header/header.ts`)
-- **Type** : dumb (n'injecte rien : importe seulement la directive `RouterLink` pour le logo)
-- **Rôle** : bandeau en haut de l'application (`<header>`, `bg-dark`). De gauche à droite : le logo (lien vers `/entreprises`), une zone réservée à la navigation (texte provisoire « nav item », `Nav` pas encore branché), le bloc utilisateur (avatar rond avec les initiales, nom, rôle) et un bouton « Déconnexion ». **HTML statique pour l'instant** : nom, rôle et initiales sont écrits en dur, et le bouton n'a pas d'action.
+- **Type** : dumb (n'injecte rien : importe la directive `RouterLink` pour le logo et le composant `Nav`)
+- **Rôle** : bandeau en haut de l'application (`<header>`, `bg-dark`). De gauche à droite : le logo (lien vers `/entreprises`), le menu `<app-nav>` (qui prend la place libre avec `flex-grow-1`), le bloc utilisateur (avatar rond avec les initiales et nom) et un bouton « Déconnexion ». **HTML statique pour l'instant** : nom et initiales sont écrits en dur, et le bouton n'a pas d'action.
 - **Style** : classes Bootstrap. Seule règle CSS : `.avatar` (taille fixe du cercle) dans `header.css`. Avatar en `bg-primary-subtle text-primary-emphasis`, masqué aux lecteurs d'écran (`aria-hidden`), puisque le nom est écrit à côté.
 - **Entrées / sorties** : aucune.
 - **Utilisé par** : `App` (`app.html`, démonstration en cours).
 
 #### Nav (`shared/nav/nav.ts`)
 - **Type** : dumb (n'injecte rien : utilise seulement les directives `RouterLink` et `RouterLinkActive` dans le template)
-- **Rôle** : navigation principale (`<nav aria-label="Navigation principale">`), avec des liens vers `/entreprises`, `/contacts` et `/opportunites` (pills Bootstrap). Le lien de la page courante reçoit la classe `active` et `aria-current="page"`.
+- **Rôle** : navigation principale (`<nav aria-label="Navigation principale">`), avec des liens vers `/entreprises`, `/contacts` et `/opportunites` (liste `nav` Bootstrap, conçue pour un fond sombre). Liens inactifs : `link-light link-opacity-75`. Lien de la page courante : `routerLinkActive` ajoute `bg-white bg-opacity-10 link-opacity-100 fw-semibold`, et `aria-current="page"` (`ariaCurrentWhenActive`).
 - **Entrées / sorties** : aucune.
-- **Utilisé par** : personne pour l'instant (à placer dans le header ou la mise en page commune).
+- **Utilisé par** : `Header`.
 
 #### LayoutPages (`shared/layout-pages/layout-pages.ts`)
 
@@ -188,14 +188,12 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - `LayoutSlice` : mise en page en deux colonnes avec `ng-content` (`slotStart` / `slotEnd`) et ses tests.
 - `LayoutTopBottom` : mise en page en deux blocs empilés (haut / bas, 50 % de la hauteur chacun), mêmes slots, et ses tests.
 - `LayoutPages` (exercice, pour le moment) : cadre des pages de liste (en-tête, barre d'outils, contenu, pied de page) et ses tests.
-- `Header` : bandeau conforme à la maquette (logo, zone de navigation, utilisateur, déconnexion), en HTML statique, et ses tests.
+- `Header` : bandeau conforme à la maquette (logo, menu `Nav`, utilisateur, déconnexion), en HTML statique, et ses tests.
 
 ### À faire
 
 - Rétablir `<router-outlet>` dans `app.html` (en commentaire, remplacé par `<app-header>` et `<app-layout-pages>` pour une démonstration) et retirer de `App` les imports inutilisés (`LayoutSlice`, `LayoutTopBottom` : avertissements `NG8113` au build).
-- Brancher `Header` sur les données de l'utilisateur connecté et sur la déconnexion (feature auth).
-- Afficher `Nav` (dans le header ou la mise en page commune).
-- Corriger `app.spec.ts`, qui cherche encore le `<h1>` du template par défaut.
+- Brancher `Header` sur les données de l'utilisateur connecté et sur la déconnexion (feature auth).- Corriger `app.spec.ts`, qui cherche encore le `<h1>` du template par défaut.
 - Aligner les dossiers sur l'architecture cible (voir l'écart en 1.1).
 - Installer et configurer Playwright (dossier `e2e/`, scripts `npm run e2e*`).
 - Créer `.claude/endpoints-et-donnees.md`.

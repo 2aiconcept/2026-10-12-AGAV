@@ -182,18 +182,18 @@ export default contactsRoutes;
 
 **En bref** : `routerLink` navigue sans recharger la page, `routerLinkActive` met en évidence le lien de la page courante.
 
-**Explication** : un `<a href>` classique recharge toute l'application. `routerLink` garde un vrai `<a>` avec un `href` (clic droit, nouvel onglet et clavier fonctionnent), mais la navigation passe par le router. Les deux directives s'importent dans le composant (`imports: [RouterLink, RouterLinkActive]`) : le composant reste dumb, car il n'injecte pas le `Router`. `routerLinkActive="active"` ajoute la classe Bootstrap `active` au lien courant. Le piège : ce surlignage ne se voit pas avec un lecteur d'écran et passe par la couleur seule. On ajoute donc `ariaCurrentWhenActive="page"`, qui pose `aria-current="page"` sur le lien actif. Bonne pratique : entourer les liens d'un `<nav>` nommé avec `aria-label`, et utiliser `<a routerLink>` pour naviguer, jamais un `<button>` avec `router.navigate()`.
+**Explication** : un `<a href>` classique recharge toute l'application. `routerLink` garde un vrai `<a>` avec un `href` (clic droit, nouvel onglet et clavier fonctionnent), mais la navigation passe par le router. Les deux directives s'importent dans le composant (`imports: [RouterLink, RouterLinkActive]`) : le composant reste dumb, car il n'injecte pas le `Router`. `routerLinkActive` ajoute une ou plusieurs classes au lien courant, séparées par des espaces. Ici, ce sont des utilitaires Bootstrap pour un fond sombre : fond blanc translucide (`bg-white bg-opacity-10`), texte opaque (`link-opacity-100`) et semi-gras. Les liens inactifs sont en `link-light link-opacity-75`. Le piège : ce surlignage ne se voit pas avec un lecteur d'écran et passe par la couleur seule. On ajoute donc `ariaCurrentWhenActive="page"`, qui pose `aria-current="page"` sur le lien actif. Bonne pratique : entourer les liens d'un `<nav>` nommé avec `aria-label`, et utiliser `<a routerLink>` pour naviguer, jamais un `<button>` avec `router.navigate()`.
 
 **Dans notre appli** (`src/app/shared/nav/nav.html`) :
 
 ```html
 <nav aria-label="Navigation principale">
-  <ul class="nav nav-pills gap-2">
+  <ul class="nav gap-2">
     <li class="nav-item">
       <a
-        class="nav-link"
+        class="nav-link rounded-3 link-light link-opacity-75 link-opacity-100-hover"
         routerLink="/entreprises"
-        routerLinkActive="active"
+        routerLinkActive="bg-white bg-opacity-10 link-opacity-100 fw-semibold"
         ariaCurrentWhenActive="page"
         >Entreprises</a
       >
@@ -347,7 +347,9 @@ Le test vérifie que l'ordre d'affichage suit le layout, même si l'hôte écrit
 
 **En bref** : on construit un écran avec les classes utilitaires de Bootstrap (flex, espacements, couleurs). On n'écrit du CSS que pour ce que Bootstrap ne sait pas faire.
 
-**Explication** : pour une barre horizontale, `d-flex align-items-center gap-4` aligne les blocs et les espace sans CSS. `flex-grow-1` sur la zone centrale pousse le reste à droite. Bouton en pilule : `btn btn-outline-light rounded-pill`. Texte secondaire sur fond sombre : `text-white-50`. Avant d'écrire une règle CSS, on vérifie qu'aucune classe ne le fait. Ici, seul l'avatar en a besoin : un cercle demande une largeur égale à la hauteur, et Bootstrap n'a pas de taille fixe. On commente le « pourquoi » de cette règle. Accessibilité : le bandeau est un `<header>`, repère que les lecteurs d'écran listent. Les initiales de l'avatar sont masquées (`aria-hidden="true"`), car le nom complet est écrit juste à côté, et sinon il serait lu deux fois. On commence en **HTML statique** (nom, rôle écrits en dur) pour valider le design. Les données arriveront avec la feature auth.
+**Explication** : pour une barre horizontale, `d-flex align-items-center gap-4` aligne les blocs et les espace sans CSS. `flex-grow-1` sur la zone centrale pousse le reste à droite. Bouton en pilule : `btn btn-outline-light rounded-pill`. Avant d'écrire une règle CSS, on vérifie qu'aucune classe ne le fait. Ici, seul l'avatar en a besoin : un cercle demande une largeur égale à la hauteur, et Bootstrap n'a pas de taille fixe. On commente le « pourquoi » de cette règle. Accessibilité : le bandeau est un `<header>`, repère que les lecteurs d'écran listent. Les initiales de l'avatar sont masquées (`aria-hidden="true"`), car le nom complet est écrit juste à côté, et sinon il serait lu deux fois. On commence en **HTML statique** (nom écrit en dur) pour valider le design. Les données arriveront avec la feature auth.
+
+Découper en composants : le menu était d'abord écrit dans le header. On l'a déplacé dans le composant dumb `Nav` (`shared/nav/`), et le header l'affiche avec `<app-nav>`. Le header n'importe plus `RouterLinkActive`, qui ne sert qu'au menu, mais il importe `Nav`. Les tests suivent le même découpage : `nav.spec.ts` teste les liens et `aria-current`, `header.spec.ts` vérifie seulement que le menu est présent. Une classe posée sur la balise d'un composant (`<app-nav class="flex-grow-1">`) s'applique à son élément hôte : c'est comme ça que le header lui fait prendre la place libre.
 
 **Dans notre appli** (`src/app/shared/header/header.html`) :
 
@@ -355,7 +357,7 @@ Le test vérifie que l'ordre d'affichage suit le layout, même si l'hôte écrit
 <header class="d-flex align-items-center gap-4 bg-dark text-white px-4 py-2">
   <a class="navbar-brand d-flex align-items-center gap-2 me-0" routerLink="/entreprises">…logo…</a>
 
-  <div class="flex-grow-1">nav item</div>
+  <app-nav class="flex-grow-1"></app-nav>
 
   <div class="d-flex align-items-center gap-2">
     <span
@@ -365,7 +367,6 @@ Le test vérifie que l'ordre d'affichage suit le layout, même si l'hôte écrit
     >
     <div class="lh-sm">
       <div class="fw-semibold">Chris Martin</div>
-      <div class="small text-white-50">Commercial</div>
     </div>
   </div>
 
