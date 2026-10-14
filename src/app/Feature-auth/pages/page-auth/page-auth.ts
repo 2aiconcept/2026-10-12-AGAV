@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { LayoutSlice } from '../../../shared/layout-slice/layout-slice';
 import { Logo } from '../../../shared/logo/logo';
 import { AuthService } from '../../data-access/auth-service';
@@ -12,6 +12,11 @@ import { BehaviorSubject, Observable, Subject } from 'rxjs';
 })
 export default class PageAuth {
   authService = inject(AuthService);
+
+  readonly test = signal<string>('chris');
+  changeValue() {
+    this.test.set('julien');
+  }
 
   seConnecter() {
     this.authService.connexion();
@@ -71,7 +76,7 @@ export default class PageAuth {
       ]);
     });
 
-    observable.subscribe({
+    const sub = observable.subscribe({
       next(data) {
         listcontacts.next(data);
       },
@@ -108,4 +113,7 @@ export default class PageAuth {
 
     // behaviorSubject.next(Math.random());
   }
+  // ngOnDestroy( ){
+  //   sub.unsubscribe()
+  // }
 }
