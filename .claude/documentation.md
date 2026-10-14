@@ -146,10 +146,193 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
 
 ### 3.2 entreprises
 
+> **Écriture « classique »** : comme la feature auth, `HttpClient` qui renvoie des `Observable` froids, consommés par le pipe `async` dans la page. Pas de signals pour les données (étape 1 de la progression).
+
 #### PageEntreprises (`Feature-entreprises/pages/page-entreprises/page-entreprises.ts`)
 - **Type** : smart
-- **Rôle** : liste des entreprises.
+- **Rôle** : liste des entreprises dans `LayoutPages`. En-tête (`pageHeader`, `d-flex justify-content-between`) : « Portefeuille commercial » et le titre `h1` « Entreprises » à gauche, à droite le lien-bouton « + Ajouter une entreprise » (`<a routerLink="/entreprises/ajouter">`, `btn btn-primary rounded-pill`). Route et page de création pas encore créées : le lien mène pour l'instant à la page introuvable. Contenu : tableau Bootstrap (`table table-hover`, `<caption>` masquée pour les lecteurs d'écran, `<th scope="col">`) avec nom + adresse, secteur, téléphone et une colonne **Actions**. Pied (`pageFooter`) : nombre d'entreprises affichées.
+- **Données** : `entreprises$ = entreprisesService.lister()`, lu dans le template avec `@let entreprises = entreprises$ | async` (c'est cet abonnement qui déclenche la requête). Tant que l'API n'a pas répondu, message « Chargement des entreprises… » (`aria-live`). Liste vide : « Aucune entreprise. » (`@empty`).
+- **Actions par ligne** :
+  - **Modifier** : lien `<a routerLink>` vers `/entreprises/{id}/modifier` (route et page pas encore créées : mène pour l'instant à la page introuvable).
+  - **Supprimer** : bouton qui demande une confirmation (`confirm()`), appelle `EntreprisesService.supprimer(id)` (abonnement avec `takeUntilDestroyed`), puis recharge la liste en remplaçant `entreprises# Documentation du mini-CRM
+
+Documentation de toute l'application, mise à jour à chaque ajout ou modification de code. Elle décrit le code **tel qu'il est aujourd'hui**.
+
+## 1. Architecture
+
+### 1.1 Règles de dépendances
+
+```
+src/app/
+  <feature>/            # auth, entreprises, contacts, opportunites
+    data-access/        # service de la feature (HTTP + état en signals)
+    smart-components/   # pages routées (*-page)
+    dump-components/    # composants de présentation (input()/output())
+    utils/models/       # interfaces propres à la feature
+  shared/               # ce qui sert à plus d'une feature
+  layout/               # structure commune des pages (header, mise en page)
+```
+
+| Depuis…   | Peut importer                                   | Ne peut pas importer         |
+| --------- | ----------------------------------------------- | ---------------------------- |
+| Feature   | sa propre feature, `shared/`, `layout/`         | une autre feature            |
+| `shared/` | `shared/`                                       | une feature                  |
+| `layout/` | `layout/`, `shared/`                            | une feature                  |
+| Smart     | services de sa feature ou de `shared/`, dumb    | services d'une autre feature |
+| Dumb      | rien d'injecté (ni service, ni router, ni HTTP) | —                            |
+
+Un élément utilisé par une seule feature reste dans cette feature. Il passe dans `shared/` dès qu'une deuxième feature en a besoin.
+
+**Écart actuel avec cette cible** : les dossiers du code s'appellent `Feature-<feature>/` (au lieu de `<feature>/`), `pages/` (au lieu de `smart-components/`) et `ui/` (au lieu de `dump-components/`), `models/` (au lieu de `utils/models/`). `Feature-not-found/` existe en plus des quatre features. Il n'y a pas encore de dossier `layout/` : `app-shell`, `header`, `nav`, `logo`, `button-small`, `badge-utilisateur`, `pipes`, `layout-pages`, `layout-slice` et `layout-top-bottom` sont dans `shared/`. Enfin, `shared/header`, `shared/jwt-interceptor` et `shared/errors-interceptor` importent `AuthService` de la feature auth (dépendance `shared/` → feature interdite par la règle ci-dessus, assumée provisoirement). Via les intercepteurs, `AuthService` est donc aussi référencé depuis `app.config.ts` et chargé dans le bundle initial.
+
+### 1.2 Démarrage de l'application
+
+- `src/main.ts` : `bootstrapApplication(App, appConfig)`, sans NgModule.
+- `src/app/app.config.ts` : providers globaux (`provideRouter`, `provideBrowserGlobalErrorListeners`, `provideHttpClient(withInterceptors([jwtInterceptor, errorsInterceptor]))`). Aucun service de feature n'y est fourni.
+- `src/app/app.ts` : composant racine `App`. `app.html` n'affiche que `<router-outlet>` (le header et une démonstration de `<app-layout-pages>` y sont en commentaire). Le header est affiché par `AppShell`, sur les pages connectées seulement (voir section 2).
+- Environnements : `src/environments/environment.ts` (développement, `production: false`) et `environment.prod.ts` (`production: true`). Les deux exposent `apiBaseUrl` (aujourd'hui la même URL d'API). Au build de production, `angular.json` remplace le premier par le second (`fileReplacements`). Le code importe toujours `environments/environment` (`AuthService`, `jwtInterceptor`).
+- Styles : `src/styles.css`, qui charge le CSS précompilé de Bootstrap une seule fois (`@import 'bootstrap/dist/css/bootstrap.min.css'`). `angular.json` ne référence que `src/styles.css`.
+
+## 2. Routes
+
+Déclarées dans `src/app/app.routes.ts`. Les pages sont chargées en lazy loading (`loadComponent`, ou `loadChildren` pour une feature à plusieurs pages) et exportées par défaut (`export default class`). Chaque page a un `title` (titre de l'onglet, annoncé par les lecteurs d'écran).
+
+Deux familles de pages :
+- **hors coque** : `/connexion` et la page introuvable, affichées seules (sans header) ;
+- **dans la coque `AppShell`** : la route `''` affiche `AppShell` (chargé directement, pas en lazy loading), qui contient le header et un `<router-outlet>` enfant pour les pages de l'application.
+
+| Chemin                | Composant            | Feature        | Guard | Description                          |
+| --------------------- | -------------------- | -------------- | ----- | ------------------------------------ |
+| `connexion`           | `PageAuth`           | auth           | —     | Connexion (hors coque)               |
+| `''`                  | `AppShell`           | shared         | —     | Coque : header + pages enfants ci-dessous |
+| `''` (enfant)         | —                    | —              | —     | Redirige vers `entreprises`          |
+| `entreprises`         | `PageEntreprises`    | entreprises    | —     | Liste des entreprises                |
+| `contacts`            | `PageContacts`       | contacts       | —     | Liste des contacts (`contacts.routes.ts`) |
+| `contacts/ajouter`    | `PageAjouterContact` | contacts       | —     | Création d'un contact                |
+| `contacts/editer/:id` | `PageEditerContact`  | contacts       | —     | Modification d'un contact            |
+| `opportunites`        | `PageOpportunites`   | opportunites   | —     | Liste des opportunités               |
+| `**`                  | `PageNotFound`       | not-found      | —     | Page introuvable (hors coque)        |
+
+Les routes de la feature contacts sont dans `src/app/Feature-contacts/contacts.routes.ts`, exportées par défaut et chargées par `loadChildren`.
+
+## 2 bis. API
+
+Détail complet (tous les endpoints, corps envoyés et reçus, erreurs, modèles) : **`.claude/endpoints-et-donnees.md`**, tiré du Swagger (`https://mini-crm-api-jwt-production.up.railway.app/api-docs/`).
+
+En résumé :
+- URL : `environment.apiBaseUrl` = `https://mini-crm-api-jwt-production.up.railway.app/api`.
+- Auth JWT : `POST /auth/login` et `POST /auth/register` renvoient `{ token, user }`. Les autres routes exigent `Authorization: Bearer <token>`. `GET /auth/profile` renvoie l'utilisateur connecté.
+- CRUD complet (`GET` liste, `GET /{id}`, `POST`, `PUT /{id}` partiel, `DELETE /{id}`) sur `/entreprises`, `/contacts` et `/opportunites`. Plus `GET /entreprises/{id}/contacts`, `GET /contacts/{id}/opportunites` et `GET /dashboard/stats`.
+- Modèles : `Entreprise`, `Contact` (`entreprise_id`), `Opportunite` (`contact_id`, `entreprise_id`, `statut` : `Prospect` | `En cours` | `Gagne` | `Perdu`), `UserProfile` (`id`, `email`, `nom`, `prenom`, `role`).
+- Comptes de démo : `user@test.com` / `password123`, `admin@test.com` / `admin123`.
+
+## 3. Features
+
+<!--
+Modèle de fiche, à recopier pour chaque élément :
+
+#### NomDuComposant (`chemin/du/fichier.ts`)
+- **Type** : smart | dumb | service | modèle | guard | interceptor
+- **Rôle** : à quoi il sert, en une phrase.
+- **Entrées** : input() / paramètres de route / données lues dans le service.
+- **Sorties** : output() / méthodes publiques du service / navigation.
+- **Utilisé par** : composants ou routes qui s'en servent.
+-->
+
+Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUtilisateur`, `Header`, `AppShell`, `LayoutSlice`, `LayoutTopBottom` et `LayoutPages`), les composants ci-dessous sont des squelettes générés par le CLI : template `<p>… works!</p>`, sans input, output ni logique. Les fiches seront complétées quand ils auront un comportement.
+
+### 3.1 auth
+
+> **Écriture « classique » pour les échanges HTTP.** La feature auth sert d'exemple : `HttpClient` qui renvoie des `Observable`, pipe `async` dans la page, formulaire réactif avec `FormBuilder`. Les autres formulaires utiliseront les Signal Forms. Seule la **session** est passée en `signal()` (exercice : elle était d'abord dans un `BehaviorSubject`, voir le support de cours 4.5). Le reste sera basculé en signals plus tard (étape 3).
+
+#### PageAuth (`Feature-auth/pages/page-auth/page-auth.ts`)
+- **Type** : smart
+- **Rôle** : page de connexion et d'inscription, en deux colonnes avec `LayoutSlice`.
+  - Colonne gauche (`slotStart`) : `<app-logo>` en haut, au centre (`my-auto`) l'accroche « Mini-CRM », le titre `h1` et l'invitation, en bas le copyright. Couleurs du thème sombre de la colonne (`text-body-secondary`, `text-primary-emphasis`).
+  - Colonne droite (`slotEnd`) : un `<main>` qui contient `<app-form-auth>`.
+- **Entrées** : événements `connexion` (`Login`) et `inscription` (`Register`) de `FormAuth`.
+- **Fonctionnement** : `seConnecter()` / `creerUnCompte()` affectent `envoi$` (`Observable<ResultatEnvoi>`), construit à partir de l'observable du service : `tap` (navigation vers `/entreprises` en cas de succès), `map` (`{ erreur: null }`), `catchError` (message d'erreur lisible). La requête part quand le pipe `async` du template s'abonne (`@let resultat = envoi$ | async`). Chaque nouvel envoi remplace `envoi$` : le pipe `async` se désabonne de l'ancien. Pendant l'attente (`envoi$` défini et `resultat` encore `null`), `FormAuth` reçoit `isEnvoiEnCours = true`.
+- **Messages d'erreur** : 401 → « E-mail ou mot de passe incorrect. » ; 400 → message `error` de l'API (ex. e-mail déjà utilisé) ; 0 → serveur injoignable ; autre → message générique.
+- **Sorties** : navigation vers `/entreprises` après connexion ou inscription réussie.
+- **Utilisé par** : route `connexion`.
+
+#### FormAuth (`Feature-auth/ui/form-auth/form-auth.ts`)
+- **Type** : dumb (formulaire réactif : `ReactiveFormsModule` + `NonNullableFormBuilder`, outil de formulaire et non service de données)
+- **Rôle** : formulaire conforme à la maquette, en deux modes :
+  - **connexion** : e-mail, mot de passe ;
+  - **inscription** : prénom, nom, e-mail, mot de passe.
+  On change de mode avec les deux onglets (boutons `aria-pressed`) ou le lien du bas. Le mode et l'affichage du mot de passe sont un état d'affichage, en `signal()`.
+- **Formulaire** : un seul `FormGroup`. `prenom` et `nom` sont désactivés en mode connexion, donc ignorés par la validation. Validateurs : `required` partout, `email`, `minLength(6)` sur le mot de passe.
+- **Accessibilité** : `<label for>` sur chaque champ, erreurs affichées après le passage dans le champ (`touched`) ou à l'envoi (`markAllAsTouched`), reliées par `aria-describedby`, `aria-invalid`. Bouton « Afficher / Masquer le mot de passe » (`aria-pressed`, `aria-controls`). Erreur serveur en `role="alert"`, envoi en cours annoncé par `aria-live`. `autocomplete` adapté au mode.
+- **Entrées** : `erreur` (`input<string | null>`, message à afficher), `isEnvoiEnCours` (`input<boolean>` : bouton désactivé + spinner).
+- **Sorties** : `connexion` (`output<Login>`), `inscription` (`output<Register>`), émis seulement si le formulaire est valide.
+- **Style** : classes Bootstrap ; `form-auth.css` limite seulement la largeur (`:host`, `max-width: 28rem`).
+- **Utilisé par** : `PageAuth`.
+
+#### AuthService (`Feature-auth/data-access/auth-service.ts`)
+- **Type** : service (`@Service()`). Requêtes en observables, session en signal.
+- **Rôle** : appels HTTP d'authentification et session de l'utilisateur.
+- **Méthodes** (observables froids : la requête ne part qu'à l'abonnement) :
+  - `connexion(identifiants: Login): Observable<User>` : `POST /auth/login`.
+  - `creerUnCompte(register: Register): Observable<User>` : `POST /auth/register`.
+  - Les deux enregistrent la session reçue au passage (`tap`), seulement en cas de succès.
+  - `deconnexion(): void` : efface la session.
+- **État** : `session` (`Signal<User | null>`, lecture seule), exposé par `asReadonly()` d'un `signal()` privé que seul le service modifie (`set()`). Initialisé au démarrage depuis le `localStorage` (clé `mini-crm.session`, JSON illisible ignoré). Lu par le header et par `jwtInterceptor` (`session()`) ; servira aussi au guard.
+- **Utilisé par** : `PageAuth` (`connexion`, `creerUnCompte`), `Header` (`session`, `deconnexion`), `jwtInterceptor` (`session`), `errorsInterceptor` (`deconnexion`).
+
+#### Login (`Feature-auth/models/login.ts`)
+- **Type** : modèle (interface)
+- **Rôle** : identifiants envoyés à `POST /auth/login` (`LoginInput` de l'API) : `email`, `password`.
+- **Utilisé par** : `AuthService.connexion()`, `FormAuth`, `PageAuth`.
+
+#### Register (`Feature-auth/models/register.ts`)
+- **Type** : modèle (interface)
+- **Rôle** : données envoyées pour créer un compte (`RegisterInput` de l'API) : `email`, `password` (6 caractères minimum), `nom`, `prenom`, tous obligatoires.
+- **Utilisé par** : `AuthService.creerUnCompte()`, `FormAuth`, `PageAuth`.
+
+#### User (`Feature-auth/models/user.ts`)
+- **Type** : modèle (interface)
+- **Rôle** : session renvoyée par l'API après connexion ou inscription (`AuthResponse`) : `token` (JWT) et `user` (`id`, `email`, `nom`, `prenom`, `role`). C'est aussi ce qui est stocké dans le `localStorage`.
+- **Utilisé par** : `AuthService`, `PageAuth`.
+
+#### ResultatEnvoi (`Feature-auth/models/resultat-envoi.ts`)
+- **Type** : modèle (interface)
+- **Rôle** : résultat d'un envoi du formulaire vu par la page : `erreur` (`string | null`).
+- **Utilisé par** : `PageAuth`.
+
+### 3.2 entreprises
+
+> **Écriture « classique »** : comme la feature auth, `HttpClient` qui renvoie des `Observable` froids, consommés par le pipe `async` dans la page. Pas de signals pour les données (étape 1 de la progression).
+
+#### PageEntreprises (`Feature-entreprises/pages/page-entreprises/page-entreprises.ts`)
+- **Type** : smart
+- **Rôle** : liste des entreprises dans `LayoutPages`. En-tête (`pageHeader`) : « Portefeuille commercial » et le titre `h1` « Entreprises ». Contenu : tableau Bootstrap (`table table-hover`, `<caption>` masquée pour les lecteurs d'écran, `<th scope="col">`) avec nom + adresse, secteur, téléphone et une colonne **Actions**. Pied (`pageFooter`) : nombre d'entreprises affichées.
+- **Données** : `entreprises$ = entreprisesService.lister()`, lu dans le template avec `@let entreprises = entreprises$ | async` (c'est cet abonnement qui déclenche la requête). Tant que l'API n'a pas répondu, message « Chargement des entreprises… » (`aria-live`). Liste vide : « Aucune entreprise. » (`@empty`).
+ par un nouvel `lister()` (le pipe `async` s'y réabonne et relance le GET).
+  - Le nom de l'entreprise est ajouté en texte masqué (`visually-hidden`) dans chaque lien et bouton : « Modifier TechVision », « Supprimer TechVision ».
+- **Pas encore** : pages de création et de modification, recherche, gestion d'erreur à l'écran (une erreur laisse le message de chargement ; un 401 est traité par `errorsInterceptor`).
 - **Utilisé par** : route `entreprises`.
+
+#### EntreprisesService (`Feature-entreprises/data-access/entreprises-service.ts`)
+- **Type** : service (`@Service()`), sans signals.
+- **Rôle** : CRUD des entreprises sur `${environment.apiBaseUrl}/entreprises`. Chaque méthode renvoie l'`Observable` froid de `HttpClient` (rien ne part sans abonnement, chaque abonnement relance la requête). Le token est ajouté par `jwtInterceptor`.
+- **Méthodes** :
+  - `lister(): Observable<Entreprise[]>` : `GET /entreprises`.
+  - `trouver(id): Observable<Entreprise>` : `GET /entreprises/{id}`.
+  - `creer(entreprise: EntrepriseInput): Observable<Entreprise>` : `POST /entreprises`.
+  - `modifier(id, entreprise: EntrepriseInput): Observable<Entreprise>` : `PUT /entreprises/{id}` (mise à jour partielle côté API).
+  - `supprimer(id): Observable<void>` : `DELETE /entreprises/{id}`.
+- **Utilisé par** : `PageEntreprises` (`lister`, `supprimer`). `trouver`, `creer` et `modifier` ne sont pas encore appelées.
+
+#### Entreprise (`Feature-entreprises/models/entreprise.ts`)
+- **Type** : modèle (interface)
+- **Rôle** : entreprise renvoyée par l'API : `id`, `nom`, `secteur?`, `adresse?`, `telephone?`.
+- **Utilisé par** : `EntreprisesService`, `PageEntreprises`.
+
+#### EntrepriseInput (`Feature-entreprises/models/entreprise-input.ts`)
+- **Type** : modèle (type utilitaire `Omit<Entreprise, 'id'>`)
+- **Rôle** : données envoyées pour créer ou modifier une entreprise : les champs d'`Entreprise` sans `id` (`nom` obligatoire, `secteur?`, `adresse?`, `telephone?`). Suit automatiquement les changements d'`Entreprise`.
+- **Utilisé par** : `EntreprisesService.creer()` et `modifier()`.
 
 ### 3.3 contacts
 
@@ -257,13 +440,13 @@ Routes de la feature : `Feature-contacts/contacts.routes.ts` (voir section 2).
 
 #### LayoutPages (`shared/layout-pages/layout-pages.ts`)
 
-> **Exercice, pour le moment** : ce composant est un corrigé d'exercice. Il n'est utilisé par aucune page et peut encore changer.
+> **Issu d'un exercice** : ce composant est un corrigé d'exercice, désormais utilisé par `PageEntreprises`. Il peut encore évoluer.
 
 - **Type** : dumb (mise en page par projection de contenu)
 - **Rôle** : cadre commun des pages de liste (entreprises, contacts, opportunités). C'est une carte Bootstrap (`card shadow-sm`) dans un `container`, découpée en quatre zones séparées par une bordure : en-tête, barre d'outils, contenu (`card-body p-3`) et pied de page. Ne pose aucun repère (`<main>`…).
 - **Entrées** : quatre `ng-content`, dans cet ordre d'affichage : `[pageHeader]` (titre et action principale), `[pageToolbar]` (recherche, filtres), contenu par défaut (tout ce qui n'a pas d'attribut de slot, ex. : le tableau), `[pageFooter]` (compteur, pagination). Une zone sans contenu reste affichée, vide.
 - **Sorties** : aucune.
-- **Utilisé par** : personne pour l'instant (importé dans `App`, démonstration en commentaire dans `app.html`).
+- **Utilisé par** : `PageEntreprises`. (Encore importé dans `App`, où la démonstration est en commentaire.)
 
 #### LayoutSlice (`shared/layout-slice/layout-slice.ts`)
 - **Type** : dumb (mise en page par projection de contenu)
@@ -326,6 +509,7 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - API documentée depuis le Swagger dans `.claude/endpoints-et-donnees.md` (endpoints, modèles, erreurs).
 - `provideHttpClient()` dans `app.config.ts`.
 - `jwtInterceptor` : token JWT ajouté aux requêtes vers l'API (`Authorization: Bearer`), enregistré avec `withInterceptors`. Avec ses tests.
+- `EntreprisesService` (CRUD, observables froids) et `PageEntreprises` (liste dans `LayoutPages`, pipe `async`, chargement, liste vide, lien « Ajouter une entreprise », colonne Actions : lien Modifier, suppression avec confirmation et rechargement). Avec leurs tests.
 - `errorsInterceptor` : sur le modèle de la doc (`tap`), 401 hors `/auth/` → déconnexion et `/connexion`, 500 → `ErrorHandler`. Avec ses tests.
 - Feature auth complète, requêtes en observables : `AuthService` (connexion, inscription, déconnexion, session en `signal()` + `localStorage`, d'abord écrite avec un `BehaviorSubject`), `FormAuth` (formulaire réactif, connexion et inscription), `PageAuth` (pipe `async`, navigation, messages d'erreur). Avec leurs tests.
 
@@ -338,4 +522,5 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - Corriger `app.spec.ts` : il cherche encore le `<h1>` du template par défaut, et `App` ne se crée plus sans `provideRouter()` (le header contient des `routerLink`).
 - Aligner les dossiers sur l'architecture cible (voir l'écart en 1.1).
 - Installer et configurer Playwright (dossier `e2e/`, scripts `npm run e2e*`).
+- Entreprises : routes et pages `/entreprises/ajouter` et `/entreprises/{id}/modifier` (cibles des liens « Ajouter une entreprise » et « Modifier »).
 - Features : `auth`, `entreprises`, `contacts`, `opportunites`.

@@ -1,1 +1,70 @@
-<p>page-entreprises works!</p>
+@let entreprises = entreprises$ | async;
+
+<app-layout-pages>
+  <div pageHeader class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div>
+      <p class="text-secondary mb-1">Portefeuille commercial</p>
+      <h1 class="h2 fw-bold mb-0">Entreprises</h1>
+    </div>
+    <a
+      class="btn btn-primary rounded-pill fw-semibold text-uppercase px-4"
+      routerLink="/entreprises/ajouter"
+    >
+      <span aria-hidden="true">+</span> Ajouter une entreprise
+    </a>
+  </div>
+
+  @if (entreprises) {
+    <table class="table table-hover align-middle mb-0">
+      <caption class="visually-hidden">Liste des entreprises</caption>
+      <thead>
+        <tr>
+          <th scope="col" class="text-uppercase small text-secondary">Entreprise</th>
+          <th scope="col" class="text-uppercase small text-secondary">Secteur</th>
+          <th scope="col" class="text-uppercase small text-secondary">Téléphone</th>
+          <th scope="col" class="text-uppercase small text-secondary text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (entreprise of entreprises; track entreprise.id) {
+          <tr>
+            <td>
+              <div class="fw-semibold">{{ entreprise.nom }}</div>
+              <div class="small text-secondary">{{ entreprise.adresse }}</div>
+            </td>
+            <td>{{ entreprise.secteur }}</td>
+            <td>{{ entreprise.telephone }}</td>
+            <td class="text-end text-nowrap">
+              <a
+                class="btn btn-sm btn-outline-secondary rounded-pill fw-semibold me-2"
+                [routerLink]="['/entreprises', entreprise.id, 'modifier']"
+              >
+                <span aria-hidden="true">✎</span> Modifier
+                <span class="visually-hidden">{{ entreprise.nom }}</span>
+              </a>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-danger rounded-pill fw-semibold"
+                (click)="supprimer(entreprise)"
+              >
+                Supprimer <span class="visually-hidden">{{ entreprise.nom }}</span>
+              </button>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="4" class="text-center text-secondary py-4">Aucune entreprise.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  } @else {
+    <p class="text-secondary text-center py-4 mb-0" aria-live="polite">
+      Chargement des entreprises…
+    </p>
+  }
+
+  <p pageFooter class="small text-secondary mb-0" aria-live="polite">
+    {{ entreprises?.length ?? 0 }} entreprise(s) affichée(s)
+  </p>
+</app-layout-pages>

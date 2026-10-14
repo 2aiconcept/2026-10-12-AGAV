@@ -25,7 +25,7 @@ Modèle de notion, à recopier :
 
 1. [Démarrer une application Angular 22](#1-démarrer-une-application-angular-22)
 2. [Le routing](#2-le-routing)
-3. [Les composants](#3-les-composants) (la notion 3.2 est un exercice pour le moment)
+3. [Les composants](#3-les-composants)
 4. [HTTP et services](#4-http-et-services)
 
 ## 1. Démarrer une application Angular 22
@@ -372,7 +372,7 @@ Le même principe sert pour une mise en page en haut / bas. On garde les **même
 
 ### 3.2 Combiner des slots nommés et un `ng-content` par défaut
 
-> **Exercice, pour le moment** : `LayoutPages` est un corrigé d'exercice. Il n'est pas encore utilisé dans l'application, et l'exemple d'utilisation ci-dessous est une illustration.
+> **Issu d'un exercice** : `LayoutPages` est un corrigé d'exercice, désormais utilisé par la page des entreprises (voir 4.8). L'exemple d'utilisation ci-dessous est une illustration ; la version réelle est en 4.8.
 
 **En bref** : un `<ng-content />` sans `select` reçoit tout ce qui n'est pris par aucun slot nommé. Il sert pour le contenu principal.
 
@@ -1091,3 +1091,201 @@ export function errorsInterceptor(
 - [Interceptors : Dependency injection in interceptors](https://angular.dev/guide/http/interceptors#dependency-injection-in-interceptors)
 - [RxJS : tap (callbacks `next` et `error`)](https://rxjs.dev/api/operators/tap)
 - [ErrorHandler](https://angular.dev/api/core/ErrorHandler)
+
+### 4.8 Un service CRUD et une liste affichée avec le pipe `async`
+
+**En bref** : un service de données expose une méthode par opération de l'API (lister, trouver, créer, modifier, supprimer), chacune renvoie un `Observable`. La page affiche la liste avec le pipe `async`, sans `subscribe` manuel.
+
+**Explication** :
+- **Une méthode = un endpoint**, nommée en français métier (`lister`, `trouver`, `creer`, `modifier`, `supprimer`). On type la réponse (`get<Entreprise[]>`) avec une interface qui suit l'API. Le type `EntrepriseInput` décrit ce qu'on envoie : c'est `Entreprise` sans l'`id` (voir 4.9).
+- **Le service ne s'abonne jamais** : il ne sait pas quand ni combien de fois les données seront lues. Le token est ajouté par l'interceptor : le service n'a pas à s'en occuper.
+- **Observable froid, démonstration** : deux `subscribe()` sur le même `lister()` envoient **deux** requêtes (voir le test). Dans un template, il faut donc lire `entreprises$` **une seule fois** : `@let entreprises = entreprises$ | async;` en haut du template, puis on réutilise `entreprises` partout. Écrire `entreprises$ | async` deux fois enverrait deux requêtes.
+- **Trois états à afficher** :
+  - pendant le chargement, `entreprises` vaut `null` : `@if … @else` affiche « Chargement… » ;
+  - liste vide : `@for … @empty` ;
+  - liste remplie : `@for (… ; track entreprise.id)`. Le `track` sur l'`id` permet à Angular de ne recréer que les lignes qui changent.
+- **Accessibilité d'un tableau** : `<caption>` (masquée visuellement avec `visually-hidden`), `<th scope="col">`, messages de chargement en `aria-live="polite"`.
+- **Le piège** : sans gestion d'erreur, une erreur HTTP laisse « Chargement… » affiché. On l'ajoutera avec `catchError`, comme dans la page de connexion (4.3).
+
+**Dans notre appli** (`src/app/Feature-entreprises/data-access/entreprises-service.ts`) :
+
+```ts
+// Observables froids : chaque méthode ne fait rien tant que personne ne s'y abonne.
+@Service()
+export class EntreprisesService {
+  private readonly http = inject(HttpClient);
+  private readonly apiUrl = `${environment.apiBaseUrl}/entreprises`;
+
+  lister(): Observable<Entreprise[]> {
+    return this.http.get<Entreprise[]>(this.apiUrl);
+  }
+
+  trouver(id: number): Observable<Entreprise> {
+    return this.http.get<Entreprise>(`${this.apiUrl}/${id}`);
+  }
+
+  creer(entreprise: EntrepriseInput): Observable<Entreprise> {
+    return this.http.post<Entreprise>(this.apiUrl, entreprise);
+  }
+
+  modifier(id: number, entreprise: EntrepriseInput): Observable<Entreprise> {
+    return this.http.put<Entreprise>(`${this.apiUrl}/${id}`, entreprise);
+  }
+
+  supprimer(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/${id}`);
+  }
+}
+```
+
+(`src/app/Feature-entreprises/pages/page-entreprises/page-entreprises.ts`) :
+
+```ts
+// Observable froid : la requête part quand le pipe async du template s'y abonne.
+protected readonly entreprises$ = this.entreprisesService.lister();
+```
+
+(`src/app/Feature-entreprises/pages/page-entreprises/page-entreprises.html`, extrait) :
+
+```html
+@let entreprises = entreprises$ | async;
+
+<app-layout-pages>
+  @if (entreprises) {
+    <table class="table table-hover align-middle mb-0">
+      <caption class="visually-hidden">Liste des entreprises</caption>
+      <tbody>
+        @for (entreprise of entreprises; track entreprise.id) {
+          <tr>…</tr>
+        } @empty {
+          <tr><td colspan="3">Aucune entreprise.</td></tr>
+        }
+      </tbody>
+    </table>
+  } @else {
+    <p aria-live="polite">Chargement des entreprises…</p>
+  }
+</app-layout-pages>
+```
+
+Le test qui prouve qu'un observable froid relance la requête à chaque abonnement (`entreprises-service.spec.ts`) :
+
+```ts
+it('relance une requête à chaque abonnement (observable froid)', () => {
+  const entreprises$ = service.lister();
+
+  entreprises$.subscribe();
+  entreprises$.subscribe();
+
+  const requetes = httpTesting.match(URL_ENTREPRISES);
+  expect(requetes.length).toBe(2);
+  requetes.forEach((requete) => requete.flush([]));
+});
+```
+
+Pour tester la page, le faux service renvoie `of(entreprises)`, ou un `Subject` qu'on fait émettre plus tard pour vérifier le message de chargement.
+
+**Docs officielles** :
+- [HttpClient : faire des requêtes](https://angular.dev/guide/http/making-requests)
+- [AsyncPipe](https://angular.dev/api/common/AsyncPipe)
+- [Contrôle de flux : `@for`, `track`, `@empty`](https://angular.dev/guide/templates/control-flow)
+- [Bootstrap : Tables](https://getbootstrap.com/docs/5.3/content/tables/)
+- [MDN : `<caption>`](https://developer.mozilla.org/fr/docs/Web/HTML/Reference/Elements/caption)
+
+### 4.9 Dériver un type d'un autre : `Omit`
+
+**En bref** : `Omit<Type, 'cle'>` crée un nouveau type à partir d'un type existant, en retirant une ou plusieurs propriétés.
+
+**Explication** :
+- Ce qu'on **envoie** pour créer une entreprise est presque ce qu'on **reçoit** : il manque juste l'`id`, généré par l'API. Plutôt que de recopier tous les champs dans une deuxième interface, on écrit `Omit<Entreprise, 'id'>`.
+- **Avantage** : une seule source de vérité. Si on ajoute un champ à `Entreprise` (par exemple `siteWeb?`), `EntrepriseInput` le reçoit automatiquement.
+- `Omit` produit un **type**, pas une interface : on l'écrit avec `type … =`. Pour l'utiliser, rien ne change (`creer(entreprise: EntrepriseInput)`).
+- On peut retirer plusieurs champs : `Omit<Opportunite, 'id' | 'statut'>`. Son contraire est `Pick<Type, 'a' | 'b'>`, qui ne garde que les champs listés. Autre utilitaire courant : `Partial<Type>`, qui rend tous les champs facultatifs (pratique pour un `PUT` partiel).
+- **Le piège** : si les deux modèles divergent vraiment (un champ envoyé n'existe pas dans la réponse, ou n'a pas le même type), `Omit` ne convient plus. On écrit alors une interface séparée.
+
+**Dans notre appli** (`src/app/Feature-entreprises/models/entreprise-input.ts`) :
+
+```ts
+import { Entreprise } from './entreprise';
+
+// Mêmes champs qu'Entreprise, sans l'id : c'est l'API qui le génère à la création.
+export type EntrepriseInput = Omit<Entreprise, 'id'>;
+```
+
+Avant, on avait recopié les champs à la main :
+
+```ts
+export interface EntrepriseInput {
+  nom: string;
+  secteur?: string;
+  adresse?: string;
+  telephone?: string;
+}
+```
+
+**Docs officielles** :
+- [TypeScript : Omit<Type, Keys>](https://www.typescriptlang.org/docs/handbook/utility-types.html#omittype-keys)
+- [TypeScript : Utility Types (Pick, Partial…)](https://www.typescriptlang.org/docs/handbook/utility-types.html)
+
+### 4.10 Agir sur une ligne : lien « Modifier », bouton « Supprimer » et rechargement
+
+**En bref** : pour une action ponctuelle (supprimer), la page s'abonne elle-même avec `subscribe()` et `takeUntilDestroyed()`. Pour recharger la liste, on remplace l'observable lu par le pipe `async`.
+
+**Explication** :
+- **Lien ou bouton ?** « Modifier » et « Ajouter une entreprise » mènent à une autre page : c'est une **navigation**, donc un `<a [routerLink]>` (clic droit, nouvel onglet et clavier fonctionnent). « Supprimer » déclenche une **action** : c'est un `<button type="button">`. Les deux peuvent avoir le même style Bootstrap (`btn btn-sm …`).
+- **Nommer chaque action** : dans un tableau, un lecteur d'écran entendrait dix fois « Supprimer » sans savoir laquelle. On ajoute le nom de l'entreprise en texte masqué : `Supprimer <span class="visually-hidden">{{ entreprise.nom }}</span>`. Le texte visible ne change pas.
+- **Titre et action principale sur une ligne** : dans l'en-tête, `d-flex justify-content-between align-items-center` place le titre à gauche et « + Ajouter une entreprise » (`btn btn-primary`, la couleur de l'action principale) à droite. `flex-wrap gap-3` les empile proprement sur petit écran.
+- **Confirmer une action destructive** : `confirm()` du navigateur suffit pour commencer (accessible, au clavier). On le remplacera plus tard par une modale.
+- **S'abonner dans la page** : la suppression n'affiche rien, il n'y a donc pas de pipe `async` pour s'abonner. On appelle `subscribe()`. `takeUntilDestroyed(this.destroyRef)` coupe l'abonnement si la page est détruite avant la réponse. C'est la bonne pratique de l'étape 1 pour un `subscribe` manuel.
+- **Recharger la liste** : on affecte un **nouvel** observable à `entreprises$`. Le pipe `async` se désabonne de l'ancien et s'abonne au nouveau, ce qui relance le GET (observable froid). `entreprises$` n'est donc plus `readonly`. Plus tard, un état partagé (`BehaviorSubject` ou signal) évitera de recharger toute la liste.
+- **Le piège** : appeler `supprimer(id)` sans `subscribe()` n'envoie rien du tout (observable froid).
+- **Tester** : `vi.spyOn(window, 'confirm').mockReturnValue(true)` simule la confirmation (`false` simule l'annulation). On vérifie que `supprimer` est appelé avec le bon `id` et que `lister` est rappelé.
+
+**Dans notre appli** (`src/app/Feature-entreprises/pages/page-entreprises/page-entreprises.ts`) :
+
+```ts
+// Observable froid : la requête part quand le pipe async du template s'y abonne.
+protected entreprises$ = this.entreprisesService.lister();
+
+protected supprimer(entreprise: Entreprise): void {
+  if (!confirm(`Supprimer l'entreprise ${entreprise.nom} ?`)) {
+    return;
+  }
+  this.entreprisesService
+    .supprimer(entreprise.id)
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe(() => this.recharger());
+}
+
+// Un nouvel observable : le pipe async s'y abonne, ce qui relance la requête GET.
+private recharger(): void {
+  this.entreprises$ = this.entreprisesService.lister();
+}
+```
+
+(`page-entreprises.html`, colonne Actions) :
+
+```html
+<td class="text-end text-nowrap">
+  <a
+    class="btn btn-sm btn-outline-secondary rounded-pill fw-semibold me-2"
+    [routerLink]="['/entreprises', entreprise.id, 'modifier']"
+  >
+    <span aria-hidden="true">✎</span> Modifier
+    <span class="visually-hidden">{{ entreprise.nom }}</span>
+  </a>
+  <button
+    type="button"
+    class="btn btn-sm btn-outline-danger rounded-pill fw-semibold"
+    (click)="supprimer(entreprise)"
+  >
+    Supprimer <span class="visually-hidden">{{ entreprise.nom }}</span>
+  </button>
+</td>
+```
+
+**Docs officielles** :
+- [takeUntilDestroyed](https://angular.dev/api/core/rxjs-interop/takeUntilDestroyed)
+- [RouterLink avec paramètres](https://angular.dev/guide/routing/navigate-to-routes)
+- [MDN : window.confirm()](https://developer.mozilla.org/fr/docs/Web/API/Window/confirm)
+- [Bootstrap : visually-hidden](https://getbootstrap.com/docs/5.3/helpers/visually-hidden/)
