@@ -27,12 +27,12 @@ src/app/
 
 Un élément utilisé par une seule feature reste dans cette feature. Il passe dans `shared/` dès qu'une deuxième feature en a besoin.
 
-**Écart actuel avec cette cible** : les dossiers du code s'appellent `Feature-<feature>/` (au lieu de `<feature>/`), `pages/` (au lieu de `smart-components/`) et `ui/` (au lieu de `dump-components/`), `models/` (au lieu de `utils/models/`). `Feature-not-found/` existe en plus des quatre features. Il n'y a pas encore de dossier `layout/` : `app-shell`, `header`, `nav`, `logo`, `button-small`, `badge-utilisateur`, `pipes`, `layout-pages`, `layout-slice` et `layout-top-bottom` sont dans `shared/`. Enfin, `shared/header` importe `AuthService` de la feature auth (dépendance `shared/` → feature interdite par la règle ci-dessus, assumée provisoirement).
+**Écart actuel avec cette cible** : les dossiers du code s'appellent `Feature-<feature>/` (au lieu de `<feature>/`), `pages/` (au lieu de `smart-components/`) et `ui/` (au lieu de `dump-components/`), `models/` (au lieu de `utils/models/`). `Feature-not-found/` existe en plus des quatre features. Il n'y a pas encore de dossier `layout/` : `app-shell`, `header`, `nav`, `logo`, `button-small`, `badge-utilisateur`, `pipes`, `layout-pages`, `layout-slice` et `layout-top-bottom` sont dans `shared/`. Enfin, `shared/header` et `shared/jwt-interceptor` importent `AuthService` de la feature auth (dépendance `shared/` → feature interdite par la règle ci-dessus, assumée provisoirement). Via l'intercepteur, `AuthService` est donc aussi référencé depuis `app.config.ts` et chargé dans le bundle initial.
 
 ### 1.2 Démarrage de l'application
 
 - `src/main.ts` : `bootstrapApplication(App, appConfig)`, sans NgModule.
-- `src/app/app.config.ts` : providers globaux (`provideRouter`, `provideBrowserGlobalErrorListeners`, `provideHttpClient`). Aucun service de feature n'y est fourni.
+- `src/app/app.config.ts` : providers globaux (`provideRouter`, `provideBrowserGlobalErrorListeners`, `provideHttpClient(withInterceptors([jwtInterceptor]))`). Aucun service de feature n'y est fourni.
 - `src/app/app.ts` : composant racine `App`. `app.html` n'affiche que `<router-outlet>` (le header et une démonstration de `<app-layout-pages>` y sont en commentaire). Le header est affiché par `AppShell`, sur les pages connectées seulement (voir section 2).
 - Environnements : `src/environments/environment.ts` (développement, `production: false`) et `environment.prod.ts` (`production: true`). Les deux exposent `apiBaseUrl` (aujourd'hui la même URL d'API). Au build de production, `angular.json` remplace le premier par le second (`fileReplacements`). Le code importe toujours `environments/environment`. Aucun fichier ne l'importe encore.
 - Styles : `src/styles.css`, qui charge le CSS précompilé de Bootstrap une seule fois (`@import 'bootstrap/dist/css/bootstrap.min.css'`). `angular.json` ne référence que `src/styles.css`.
@@ -121,8 +121,8 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
   - `creerUnCompte(register: Register): Observable<User>` : `POST /auth/register`.
   - Les deux enregistrent la session reçue au passage (`tap`), seulement en cas de succès.
   - `deconnexion(): void` : efface la session.
-- **État** : `session` (`Signal<User | null>`, lecture seule), exposé par `asReadonly()` d'un `signal()` privé que seul le service modifie (`set()`). Initialisé au démarrage depuis le `localStorage` (clé `mini-crm.session`, JSON illisible ignoré). Lu par le header (`session()`) ; servira aussi au guard et à l'interceptor.
-- **Utilisé par** : `PageAuth` (`connexion`, `creerUnCompte`), `Header` (`session`, `deconnexion`).
+- **État** : `session` (`Signal<User | null>`, lecture seule), exposé par `asReadonly()` d'un `signal()` privé que seul le service modifie (`set()`). Initialisé au démarrage depuis le `localStorage` (clé `mini-crm.session`, JSON illisible ignoré). Lu par le header et par `jwtInterceptor` (`session()`) ; servira aussi au guard.
+- **Utilisé par** : `PageAuth` (`connexion`, `creerUnCompte`), `Header` (`session`, `deconnexion`), `jwtInterceptor` (`session`).
 
 #### Login (`Feature-auth/models/login.ts`)
 - **Type** : modèle (interface)
@@ -279,6 +279,13 @@ Routes de la feature : `Feature-contacts/contacts.routes.ts` (voir section 2).
 - **Sorties** : aucune.
 - **Utilisé par** : personne pour l'instant.
 
+#### jwtInterceptor (`shared/jwt-interceptor.ts`)
+- **Type** : interceptor fonctionnel (`HttpInterceptorFn`)
+- **Rôle** : ajoute `Authorization: Bearer <token>` aux requêtes HTTP, en lisant le token de la session (`inject(AuthService).session()?.token`) au moment de chaque requête. La requête est clonée (`req.clone`), car elle est immuable.
+- **Règles** : rien n'est ajouté sans session, ni pour une URL qui ne commence pas par `environment.apiBaseUrl` (le token ne part jamais vers un autre domaine).
+- **Enregistré dans** : `app.config.ts`, `provideHttpClient(withInterceptors([jwtInterceptor]))`. S'applique à toutes les requêtes de `HttpClient`.
+- **Écart d'architecture** : dans `shared/`, mais importe `AuthService` de la feature auth (voir 1.1).
+
 ## 5. Layout
 
 _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
@@ -308,6 +315,7 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - Environnements : `environment.ts` / `environment.prod.ts` avec `apiBaseUrl`, remplacement automatique au build de production (`fileReplacements`).
 - API documentée depuis le Swagger dans `.claude/endpoints-et-donnees.md` (endpoints, modèles, erreurs).
 - `provideHttpClient()` dans `app.config.ts`.
+- `jwtInterceptor` : token JWT ajouté aux requêtes vers l'API (`Authorization: Bearer`), enregistré avec `withInterceptors`. Avec ses tests.
 - Feature auth complète, requêtes en observables : `AuthService` (connexion, inscription, déconnexion, session en `signal()` + `localStorage`, d'abord écrite avec un `BehaviorSubject`), `FormAuth` (formulaire réactif, connexion et inscription), `PageAuth` (pipe `async`, navigation, messages d'erreur). Avec leurs tests.
 
 ### À faire
@@ -315,7 +323,8 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - Retirer de `App` les imports inutilisés (`LayoutSlice`, `LayoutTopBottom`, `LayoutPages` : avertissements `NG8113` au build).
 - Corriger `app-shell.spec.ts` : `AppShell` ne se crée pas sans `provideRouter()` (erreur « No provider found for `ActivatedRoute` »).
 - Supprimer l'écart d'architecture de `Header` (`shared/` qui importe `AuthService` de la feature auth) : session dans un service de `shared/`, ou données passées par `AppShell`.
-- Protéger les pages de l'application par un guard (redirection vers `/connexion` sans session), et ajouter le token aux requêtes par un interceptor.
+- Protéger les pages de l'application par un guard (redirection vers `/connexion` sans session).
+- Réagir à un token expiré ou invalide (401 / 403 sur une route protégée) : déconnecter et renvoyer vers `/connexion`.
 - Corriger `app.spec.ts` : il cherche encore le `<h1>` du template par défaut, et `App` ne se crée plus sans `provideRouter()` (le header contient des `routerLink`).
 - Aligner les dossiers sur l'architecture cible (voir l'écart en 1.1).
 - Installer et configurer Playwright (dossier `e2e/`, scripts `npm run e2e*`).

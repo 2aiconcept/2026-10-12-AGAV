@@ -968,3 +968,58 @@ Header, avant / après (`src/app/shared/header/header.html`) :
 - [Signals](https://angular.dev/guide/signals)
 - [Signals en lecture seule (`asReadonly`)](https://angular.dev/api/core/WritableSignal)
 - [RxJS interop (quand mélanger observables et signals)](https://angular.dev/ecosystem/rxjs-interop)
+
+### 4.6 Ajouter le token à toutes les requêtes : un interceptor HTTP
+
+**En bref** : un interceptor est une fonction qui voit passer **toutes** les requêtes de `HttpClient`. On s'en sert pour ajouter le header `Authorization: Bearer <token>` à un seul endroit, au lieu de le répéter dans chaque service.
+
+**Explication** :
+- **Signature** : un interceptor fonctionnel (`HttpInterceptorFn`) reçoit la requête `req` et la suite `next`, et renvoie `next(req)`. Ne rien faire, c'est `return next(req);`.
+- **Immuabilité** : une `HttpRequest` ne se modifie pas. On en crée une copie modifiée avec `req.clone({ headers: req.headers.set('Authorization', …) })`, puis on passe la copie à `next`.
+- **`inject()` fonctionne dans un interceptor** : il s'exécute dans le contexte d'injection de l'application. On y lit le token de la session à **chaque** requête : s'il change (connexion, déconnexion), la requête suivante prend le bon.
+- **Enregistrement** : `provideHttpClient(withInterceptors([jwtInterceptor]))` dans `app.config.ts`. S'il y en a plusieurs, ils s'exécutent dans l'ordre du tableau.
+- **Le piège de sécurité** : ajouter le token à toutes les requêtes, y compris vers d'autres sites (une API publique, un CDN…), offre le token à des tiers. On ne l'ajoute que si l'URL commence par `environment.apiBaseUrl`.
+- Pas de session : on laisse passer la requête telle quelle. C'est l'API qui répondra 401, et un guard évitera d'y arriver.
+
+**Dans notre appli** (`src/app/shared/jwt-interceptor.ts`) :
+
+```ts
+export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
+  const token = inject(AuthService).session()?.token;
+
+  // Le token ne part que vers notre API, jamais vers un autre domaine.
+  if (!token || !req.url.startsWith(environment.apiBaseUrl)) {
+    return next(req);
+  }
+
+  // Une requête est immuable : on en crée une copie avec le header en plus.
+  const requeteAvecToken = req.clone({
+    headers: req.headers.set('Authorization', `Bearer ${token}`),
+  });
+  return next(requeteAvecToken);
+};
+```
+
+(`src/app/app.config.ts`) :
+
+```ts
+provideHttpClient(withInterceptors([jwtInterceptor])),
+```
+
+**Tester un interceptor** : on l'enregistre comme dans l'application (`provideHttpClient(withInterceptors([jwtInterceptor]))` + `provideHttpClientTesting()`), on remplace `AuthService` par un faux qui expose un `signal()`, on fait une vraie requête avec `HttpClient`, puis on lit les headers de la requête interceptée (`src/app/shared/jwt-interceptor.spec.ts`) :
+
+```ts
+it("n'envoie jamais le token vers un autre domaine", () => {
+  http.get(URL_AUTRE_DOMAINE).subscribe();
+
+  const requete = httpTesting.expectOne(URL_AUTRE_DOMAINE);
+
+  expect(requete.request.headers.has('Authorization')).toBe(false);
+  requete.flush({});
+});
+```
+
+**Docs officielles** :
+- [Interceptors](https://angular.dev/guide/http/interceptors)
+- [Tester les requêtes HTTP](https://angular.dev/guide/http/testing)
+- [MDN : header Authorization](https://developer.mozilla.org/fr/docs/Web/HTTP/Reference/Headers/Authorization)
