@@ -8,6 +8,8 @@
  *  - être bloqué par la validation si le nom est vide ;
  *  - modifier une entreprise : formulaire prérempli, enregistrement, liste à jour ;
  *  - supprimer une entreprise après confirmation, ou ne rien supprimer si on annule ;
+ *  - revenir sur la liste en naviguant montre la liste ACTUELLE de l'API (le store NgRx est
+ *    partagé entre les pages : il ne doit pas réafficher une liste périmée) ;
  *  - la page liste ne présente pas de problème d'accessibilité détectable (axe).
  *
  * On ne teste PAS ici : chaque règle de validation ni chaque cas d'erreur du service
@@ -174,6 +176,32 @@ test.describe('Entreprises', () => {
     // Assert : la ligne est toujours là, et l'API n'a rien supprimé.
     await expect(ligne(page, 'StratConseil')).toBeVisible();
     expect(api.entreprises).toHaveLength(2);
+  });
+
+  // Ce test vérifie un comportement propre au store NgRx : il est PARTAGÉ par toute l'application
+  // (providedIn: 'root') et garde donc la liste entre deux pages. Si la page liste ne la relisait
+  // pas à chaque arrivée, on reverrait l'ancienne liste. Seul un vrai parcours de navigation, dans
+  // la même session de l'application, peut le prouver : c'est le rôle d'un test e2e.
+  test("relit la liste sur l'API à chaque retour sur la page, même si un collègue l'a changée", async ({
+    page,
+  }) => {
+    // Arrange : la liste est affichée une première fois (2 entreprises, déjà gardées par le store).
+    await page.goto('/entreprises');
+    await expect(page.getByText('2 entreprise(s) affichée(s)')).toBeVisible();
+    // Un collègue ajoute une entreprise de son côté : on la met directement dans la fausse API,
+    // sans passer par l'écran (comme si elle venait d'un autre navigateur).
+    api.entreprises.push({ id: 3, nom: 'ShopNow', secteur: 'E-commerce' });
+
+    // Act : on quitte la liste puis on y revient EN NAVIGUANT dans l'application (clics sur des
+    // liens, pas page.goto) : l'application n'est pas rechargée, le store garde son ancienne liste.
+    await page.getByRole('link', { name: 'Ajouter une entreprise' }).click();
+    await expect(page).toHaveURL('/entreprises/ajouter');
+    await page.getByRole('link', { name: 'Retour à la liste des entreprises' }).click();
+
+    // Assert : la liste affichée est celle de l'API, avec l'entreprise du collègue.
+    await expect(page).toHaveURL('/entreprises');
+    await expect(ligne(page, 'ShopNow')).toBeVisible();
+    await expect(page.getByText('3 entreprise(s) affichée(s)')).toBeVisible();
   });
 
   test("la page liste n'a pas de problème d'accessibilité détectable", async ({ page }) => {

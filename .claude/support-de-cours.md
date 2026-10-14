@@ -1862,7 +1862,8 @@ async brancher(): Promise<void> {
 - **Store partagé** (`providedIn: 'root'`) : la liste chargée par une page reste disponible pour les autres. La page liste appelle quand même `store.charger()` à chaque arrivée, pour ne pas afficher une liste périmée.
 - **Tester** :
   - **le store**, avec un **faux service** : `{ chargerListe: vi.fn().mockResolvedValue([...]) }`, puis `TestBed.inject(EntreprisesStore)`. On vérifie les signals après chaque action, et que les écritures relisent la liste ;
-  - **une page**, avec un **faux store** : `{ provide: EntreprisesStore, useValue: { ajouter: vi.fn() } }`.
+  - **une page**, avec un **faux store** : `{ provide: EntreprisesStore, useValue: { ajouter: vi.fn() } }` ;
+  - **le partage du store, en e2e** : comme le store garde la liste entre les pages, un test e2e vérifie qu'en revenant sur la liste **en naviguant** (clics sur des liens, sans recharger l'application), on voit les changements faits entre-temps par un collègue. On a vérifié que ce test **échoue** si la page ne recharge qu'une fois (`if (store.nombre() === 0) store.charger()`) : un test doit être capable de détecter le bug qu'il protège.
 
 **Dans notre appli** (`src/app/Feature-entreprises/data-access/entreprises-store.ts`, extrait) :
 
