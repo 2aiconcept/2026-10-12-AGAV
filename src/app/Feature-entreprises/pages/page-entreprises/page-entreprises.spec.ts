@@ -1,47 +1,64 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
-import { Observable, of, Subject } from 'rxjs';
-import { EntreprisesService } from '../../data-access/entreprises-service';
+import { environment } from '../../../../environments/environment';
 import { Entreprise } from '../../models/entreprise';
 import PageEntreprises from './page-entreprises';
+
+const URL_ENTREPRISES = `${environment.apiBaseUrl}/entreprises`;
 
 describe('PageEntreprises', () => {
   let fixture: ComponentFixture<PageEntreprises>;
   let element: HTMLElement;
-  let fauxService: {
-    lister: ReturnType<typeof vi.fn>;
-    supprimer: ReturnType<typeof vi.fn>;
-  };
+  let httpTesting: HttpTestingController;
 
   const entreprises: Entreprise[] = [
     { id: 1, nom: 'TechVision', secteur: 'IT & Cloud', adresse: 'Paris', telephone: '01 45 67 89 00' },
     { id: 2, nom: 'StratConseil', secteur: 'Conseil', adresse: 'Lyon', telephone: '04 72 33 45 00' },
   ];
 
-  async function afficherPage(reponse: Observable<Entreprise[]>): Promise<void> {
-    fauxService = {
-      lister: vi.fn(() => reponse),
-      supprimer: vi.fn(() => of(undefined)),
-    };
-
+  beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [PageEntreprises],
-      providers: [provideRouter([]), { provide: EntreprisesService, useValue: fauxService }],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
     }).compileComponents();
 
+    httpTesting = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(PageEntreprises);
     element = fixture.nativeElement;
+    // Pas de whenStable ici : la requête de httpResource est en attente tant qu'on n'y répond pas.
+    // tick() affiche la page et déclenche l'envoi de la requête.
+    TestBed.tick();
+  });
+
+  afterEach(() => {
+    httpTesting.verify();
+  });
+
+  // Après un flush, la suite d'une fonction async (après un await) s'exécute plus tard.
+  function laisserFinirLesPromesses(): Promise<unknown> {
+    return new Promise((resolve) => setTimeout(resolve));
+  }
+
+  async function attendreLaReponse(): Promise<void> {
+    await laisserFinirLesPromesses();
     await fixture.whenStable();
   }
 
+  async function repondre(reponse: Entreprise[]): Promise<void> {
+    httpTesting.expectOne(URL_ENTREPRISES).flush(reponse);
+    await attendreLaReponse();
+  }
+
   it('affiche le titre de la page', async () => {
-    await afficherPage(of(entreprises));
+    await repondre(entreprises);
 
     expect(element.querySelector('h1')?.textContent).toBe('Entreprises');
   });
 
   it('affiche un lien « Ajouter une entreprise » vers la page de création', async () => {
-    await afficherPage(of(entreprises));
+    await repondre(entreprises);
 
     const lien = Array.from(element.querySelectorAll('a')).find((a) =>
       a.textContent?.includes('Ajouter une entreprise'),
@@ -50,8 +67,16 @@ describe('PageEntreprises', () => {
     expect(lien?.getAttribute('href')).toBe('/entreprises/ajouter');
   });
 
+  it("affiche un message de chargement tant que l'API n'a pas répondu", async () => {
+    expect(element.textContent).toContain('Chargement des entreprises…');
+
+    await repondre(entreprises);
+
+    expect(element.textContent).not.toContain('Chargement des entreprises…');
+  });
+
   it('affiche une ligne par entreprise', async () => {
-    await afficherPage(of(entreprises));
+    await repondre(entreprises);
 
     const lignes = element.querySelectorAll('tbody tr');
 
@@ -62,28 +87,26 @@ describe('PageEntreprises', () => {
   });
 
   it("affiche le nombre d'entreprises", async () => {
-    await afficherPage(of(entreprises));
+    await repondre(entreprises);
 
     expect(element.textContent).toContain('2 entreprise(s) affichée(s)');
   });
 
   it("affiche un message quand il n'y a aucune entreprise", async () => {
-    await afficherPage(of([]));
+    await repondre([]);
 
     expect(element.textContent).toContain('Aucune entreprise.');
   });
 
-  it("affiche un message de chargement tant que l'API n'a pas répondu", async () => {
-    const reponse = new Subject<Entreprise[]>();
-    await afficherPage(reponse);
+  it('affiche une erreur si le chargement échoue', async () => {
+    httpTesting
+      .expectOne(URL_ENTREPRISES)
+      .flush({ error: 'erreur' }, { status: 500, statusText: 'Erreur' });
+    await attendreLaReponse();
 
-    expect(element.textContent).toContain('Chargement des entreprises…');
-
-    reponse.next(entreprises);
-    await fixture.whenStable();
-
-    expect(element.textContent).not.toContain('Chargement des entreprises…');
-    expect(element.querySelectorAll('tbody tr').length).toBe(2);
+    expect(element.querySelector('[role="alert"]')?.textContent).toContain(
+      'Impossible de charger les entreprises.',
+    );
   });
 
   describe('colonne Actions', () => {
@@ -91,7 +114,7 @@ describe('PageEntreprises', () => {
 
     beforeEach(async () => {
       confirmer = vi.spyOn(window, 'confirm').mockReturnValue(true);
-      await afficherPage(of(entreprises));
+      await repondre(entreprises);
     });
 
     afterEach(() => {
@@ -118,13 +141,35 @@ describe('PageEntreprises', () => {
       expect(boutonSupprimer('StratConseil')).toBeDefined();
     });
 
-    it("supprime l'entreprise après confirmation puis recharge la liste", async () => {
+    it("supprime l'entreprise après confirmation puis relit la liste sur l'API", async () => {
       boutonSupprimer('TechVision').click();
-      await fixture.whenStable();
+
+      const suppression = httpTesting.expectOne(`${URL_ENTREPRISES}/1`);
+      expect(suppression.request.method).toBe('DELETE');
+      suppression.flush(null);
+      // Pas de whenStable : après le DELETE, reload() lance un GET qui reste en attente.
+      await laisserFinirLesPromesses();
+
+      // reload() relance le GET : la liste affichée est celle renvoyée par l'API.
+      TestBed.tick();
+      await repondre([entreprises[1]]);
 
       expect(confirmer).toHaveBeenCalledWith("Supprimer l'entreprise TechVision ?");
-      expect(fauxService.supprimer).toHaveBeenCalledWith(1);
-      expect(fauxService.lister).toHaveBeenCalledTimes(2);
+      expect(element.querySelectorAll('tbody tr').length).toBe(1);
+      expect(element.textContent).not.toContain('TechVision');
+    });
+
+    it("affiche la liste de l'API, même si un autre utilisateur l'a changée entre-temps", async () => {
+      boutonSupprimer('TechVision').click();
+      httpTesting.expectOne(`${URL_ENTREPRISES}/1`).flush(null);
+      await laisserFinirLesPromesses();
+      TestBed.tick();
+
+      const ajouteeParUnCollegue: Entreprise = { id: 3, nom: 'ShopNow', secteur: 'E-commerce' };
+      await repondre([entreprises[1], ajouteeParUnCollegue]);
+
+      expect(element.textContent).toContain('ShopNow');
+      expect(element.querySelectorAll('tbody tr').length).toBe(2);
     });
 
     it('ne supprime rien si on annule la confirmation', async () => {
@@ -133,8 +178,8 @@ describe('PageEntreprises', () => {
       boutonSupprimer('TechVision').click();
       await fixture.whenStable();
 
-      expect(fauxService.supprimer).not.toHaveBeenCalled();
-      expect(fauxService.lister).toHaveBeenCalledTimes(1);
+      httpTesting.expectNone(`${URL_ENTREPRISES}/1`);
+      expect(element.querySelectorAll('tbody tr').length).toBe(2);
     });
   });
 });

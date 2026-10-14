@@ -1,3 +1,4 @@
+import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -34,71 +35,93 @@ describe('EntreprisesService', () => {
     httpTesting.verify();
   });
 
-  it("n'envoie aucune requête tant qu'on ne s'abonne pas", () => {
-    service.lister();
+  describe('lister (httpResource)', () => {
+    it("charge les entreprises de l'API avec un GET dès la création de la ressource", async () => {
+      // httpResource doit être créé dans un contexte d'injection.
+      const entreprises = TestBed.runInInjectionContext(() => service.lister());
+      TestBed.tick();
 
-    httpTesting.expectNone(URL_ENTREPRISES);
+      const requete = httpTesting.expectOne(URL_ENTREPRISES);
+      expect(requete.request.method).toBe('GET');
+      requete.flush([techVision]);
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      expect(entreprises.hasValue()).toBe(true);
+      expect(entreprises.value()).toEqual([techVision]);
+    });
+
+    it('signale une erreur si la requête échoue', async () => {
+      const entreprises = TestBed.runInInjectionContext(() => service.lister());
+      TestBed.tick();
+
+      httpTesting
+        .expectOne(URL_ENTREPRISES)
+        .flush({ error: 'erreur' }, { status: 500, statusText: 'Erreur' });
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      expect(entreprises.error()).toBeDefined();
+      expect(entreprises.hasValue()).toBe(false);
+    });
   });
 
-  it('relance une requête à chaque abonnement (observable froid)', () => {
-    const entreprises$ = service.lister();
+  describe('écritures (firstValueFrom)', () => {
+    it("envoie la requête tout de suite : firstValueFrom s'abonne à l'appel", () => {
+      service.supprimer(1);
 
-    entreprises$.subscribe();
-    entreprises$.subscribe();
+      httpTesting.expectOne(`${URL_ENTREPRISES}/1`).flush(null);
+    });
 
-    const requetes = httpTesting.match(URL_ENTREPRISES);
-    expect(requetes.length).toBe(2);
-    requetes.forEach((requete) => requete.flush([]));
-  });
+    it("crée une entreprise avec un POST et renvoie l'entreprise créée par l'API", async () => {
+      const creation = service.creer(nouvelleEntreprise);
 
-  it('liste les entreprises avec un GET', () => {
-    let entreprises: Entreprise[] | undefined;
-    service.lister().subscribe((reponse) => (entreprises = reponse));
+      const requete = httpTesting.expectOne(URL_ENTREPRISES);
+      expect(requete.request.method).toBe('POST');
+      expect(requete.request.body).toEqual(nouvelleEntreprise);
+      requete.flush({ id: 5, ...nouvelleEntreprise });
 
-    const requete = httpTesting.expectOne(URL_ENTREPRISES);
-    requete.flush([techVision]);
+      expect(await creation).toEqual({ id: 5, ...nouvelleEntreprise });
+    });
 
-    expect(requete.request.method).toBe('GET');
-    expect(entreprises).toEqual([techVision]);
-  });
+    it("trouve une entreprise et renvoie la réponse de l'API", async () => {
+      const recherche = service.trouver(1);
 
-  it('trouve une entreprise par son id', () => {
-    let entreprise: Entreprise | undefined;
-    service.trouver(1).subscribe((reponse) => (entreprise = reponse));
+      const requete = httpTesting.expectOne(`${URL_ENTREPRISES}/1`);
+      expect(requete.request.method).toBe('GET');
+      requete.flush(techVision);
 
-    const requete = httpTesting.expectOne(`${URL_ENTREPRISES}/1`);
-    requete.flush(techVision);
+      expect(await recherche).toEqual(techVision);
+    });
 
-    expect(requete.request.method).toBe('GET');
-    expect(entreprise).toEqual(techVision);
-  });
 
-  it('crée une entreprise avec un POST', () => {
-    service.creer(nouvelleEntreprise).subscribe();
+    it("modifie une entreprise avec un PUT et renvoie l'entreprise modifiée par l'API", async () => {
+      const modification = service.modifier(1, { nom: 'TechVision SAS' });
 
-    const requete = httpTesting.expectOne(URL_ENTREPRISES);
+      const requete = httpTesting.expectOne(`${URL_ENTREPRISES}/1`);
+      expect(requete.request.method).toBe('PUT');
+      expect(requete.request.body).toEqual({ nom: 'TechVision SAS' });
+      requete.flush({ ...techVision, nom: 'TechVision SAS' });
 
-    expect(requete.request.method).toBe('POST');
-    expect(requete.request.body).toEqual(nouvelleEntreprise);
-    requete.flush({ id: 5, ...nouvelleEntreprise });
-  });
+      expect(await modification).toEqual({ ...techVision, nom: 'TechVision SAS' });
+    });
 
-  it('modifie une entreprise avec un PUT sur son id', () => {
-    service.modifier(1, { nom: 'TechVision SAS' }).subscribe();
+    it('supprime une entreprise avec un DELETE', async () => {
+      const suppression = service.supprimer(1);
 
-    const requete = httpTesting.expectOne(`${URL_ENTREPRISES}/1`);
+      const requete = httpTesting.expectOne(`${URL_ENTREPRISES}/1`);
+      expect(requete.request.method).toBe('DELETE');
+      requete.flush(null);
 
-    expect(requete.request.method).toBe('PUT');
-    expect(requete.request.body).toEqual({ nom: 'TechVision SAS' });
-    requete.flush({ ...techVision, nom: 'TechVision SAS' });
-  });
+      await expect(suppression).resolves.toBeNull();
+    });
 
-  it('supprime une entreprise avec un DELETE sur son id', () => {
-    service.supprimer(1).subscribe();
+    it("rejette la promesse si l'API renvoie une erreur", async () => {
+      const suppression = service.supprimer(1);
 
-    const requete = httpTesting.expectOne(`${URL_ENTREPRISES}/1`);
+      httpTesting
+        .expectOne(`${URL_ENTREPRISES}/1`)
+        .flush({ error: 'erreur' }, { status: 500, statusText: 'Erreur' });
 
-    expect(requete.request.method).toBe('DELETE');
-    requete.flush(null);
+      await expect(suppression).rejects.toMatchObject({ status: 500 });
+    });
   });
 });

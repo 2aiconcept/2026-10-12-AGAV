@@ -1094,6 +1094,8 @@ export function errorsInterceptor(
 
 ### 4.8 Un service CRUD et une liste affichée avec le pipe `async`
 
+> **Version d'origine** : la lecture de la liste a ensuite été basculée en `httpResource()` (voir 4.11). Les extraits de `lister()` et du template ci-dessous sont l'« avant ».
+
 **En bref** : un service de données expose une méthode par opération de l'API (lister, trouver, créer, modifier, supprimer), chacune renvoie un `Observable`. La page affiche la liste avec le pipe `async`, sans `subscribe` manuel.
 
 **Explication** :
@@ -1229,6 +1231,8 @@ export interface EntrepriseInput {
 
 ### 4.10 Agir sur une ligne : lien « Modifier », bouton « Supprimer » et rechargement
 
+> Depuis la bascule en `httpResource()` (4.11), le rechargement après suppression se fait avec `entreprises.reload()` au lieu de remplacer l'observable. L'extrait ci-dessous est l'« avant ».
+
 **En bref** : pour une action ponctuelle (supprimer), la page s'abonne elle-même avec `subscribe()` et `takeUntilDestroyed()`. Pour recharger la liste, on remplace l'observable lu par le pipe `async`.
 
 **Explication** :
@@ -1289,3 +1293,154 @@ private recharger(): void {
 - [RouterLink avec paramètres](https://angular.dev/guide/routing/navigate-to-routes)
 - [MDN : window.confirm()](https://developer.mozilla.org/fr/docs/Web/API/Window/confirm)
 - [Bootstrap : visually-hidden](https://getbootstrap.com/docs/5.3/helpers/visually-hidden/)
+
+### 4.11 Avant / après : lire une liste avec `httpResource()`
+
+**En bref** : `httpResource()` lance une requête GET et expose le résultat sous forme de **signals** : `value()`, `hasValue()`, `isLoading()`, `error()`, plus `reload()` pour relancer. Plus de pipe `async`, plus d'abonnement.
+
+**Explication** :
+- **Ce que ça remplace** : le trio `Observable` + `@let … | async` + `@if/@else` pour gérer « chargement / données », et la réaffectation de l'observable pour recharger.
+- **Pas froid, mais immédiat** : la requête part dès que la ressource est créée, et non au premier abonnement.
+- **Contexte d'injection obligatoire** : `httpResource()` doit être appelé là où `inject()` est permis. L'initialisation d'une propriété de composant convient (`protected readonly entreprises = this.entreprisesService.lister();`), un clic non.
+- **Le type change** : la méthode ne renvoie plus `Observable<Entreprise[]>` mais `HttpResourceRef<Entreprise[] | undefined>` (`undefined` tant que rien n'est chargé). C'était l'erreur de la première tentative : le type de retour `Observable` était resté, et il y avait un accent grave en trop dans `() => this.apiUrl`.
+- **Piège** : lire `value()` quand la ressource est en erreur **lève une exception**. Dans le template, on teste dans l'ordre `error()`, puis `hasValue()`, et seulement ensuite `value()`.
+- **Recharger** : `entreprises.reload()`. Pendant le rechargement, `hasValue()` reste vrai : l'ancienne liste reste affichée, sans clignotement.
+- **Les écritures n'utilisent pas `httpResource`**, qui sert à **lire** des données. Elles passent ensuite par `firstValueFrom` (voir 4.12).
+- **Tester** : la requête en attente est une tâche en cours, donc `await fixture.whenStable()` attendrait la réponse indéfiniment. On utilise `TestBed.tick()` pour afficher la page et envoyer la requête, on répond avec `HttpTestingController` (`flush`), puis on attend `whenStable()`. Dans un test de service, on crée la ressource avec `TestBed.runInInjectionContext(() => service.lister())`.
+
+**Avant** (`entreprises-service.ts` et `page-entreprises.ts`) :
+
+```ts
+lister(): Observable<Entreprise[]> {
+  return this.http.get<Entreprise[]>(this.apiUrl);
+}
+
+// dans la page
+protected entreprises$ = this.entreprisesService.lister();
+// recharger : this.entreprises$ = this.entreprisesService.lister();
+```
+
+```html
+@let entreprises = entreprises$ | async;
+@if (entreprises) { …tableau… } @else { Chargement… }
+```
+
+**Après** (`src/app/Feature-entreprises/data-access/entreprises-service.ts`) :
+
+```ts
+// httpResource lance la requête tout de suite et expose des signals (value, isLoading, error).
+// À appeler dans un contexte d'injection (ex. initialisation d'une propriété de composant).
+lister(): HttpResourceRef<Entreprise[] | undefined> {
+  return httpResource<Entreprise[]>(() => this.apiUrl);
+}
+```
+
+(`page-entreprises.ts`) :
+
+```ts
+// Ressource HTTP : la requête part dès la création, le template lit ses signals.
+protected readonly entreprises = this.entreprisesService.lister();
+
+// après la suppression (version 4.12 : await puis reload)
+await this.entreprisesService.supprimer(entreprise.id);
+this.entreprises.reload();
+```
+
+(`page-entreprises.html`, extrait) :
+
+```html
+@if (entreprises.error()) {
+  <div class="alert alert-danger m-3" role="alert">
+    Impossible de charger les entreprises. Réessayez plus tard.
+  </div>
+} @else if (entreprises.hasValue()) {
+  @for (entreprise of entreprises.value(); track entreprise.id) { … }
+} @else {
+  <p aria-live="polite">Chargement des entreprises…</p>
+}
+```
+
+Test de la page (`page-entreprises.spec.ts`) :
+
+```ts
+// Pas de whenStable ici : la requête de httpResource est en attente tant qu'on n'y répond pas.
+// tick() affiche la page et déclenche l'envoi de la requête.
+TestBed.tick();
+
+httpTesting.expectOne(URL_ENTREPRISES).flush(entreprises);
+await fixture.whenStable();
+```
+
+**Docs officielles** :
+- [httpResource](https://angular.dev/guide/http/http-resource)
+- [Resource (signals asynchrones)](https://angular.dev/guide/signals/resource)
+- [Tester les requêtes HTTP](https://angular.dev/guide/http/testing)
+
+### 4.12 Écrire avec `firstValueFrom`, relire avec `reload()` : l'API, seule source de vérité
+
+**En bref** : `firstValueFrom()` transforme l'observable de `HttpClient` en `Promise`, qu'on attend avec `await`. Après une écriture, on ne modifie jamais la liste à la main : on la **relit sur l'API** avec `reload()`.
+
+**Explication** :
+- **`firstValueFrom(obs$)`** s'abonne tout de suite, prend la première valeur émise et renvoie une `Promise`. Une requête HTTP n'émet qu'une valeur : c'est exactement ce qu'il faut pour un `POST`, un `PUT` ou un `DELETE`. Le code se lit de haut en bas, avec `async/await`, sans `subscribe` ni `takeUntilDestroyed`.
+- **Différence avec l'observable froid** : la requête part **à l'appel** de la méthode, pas à l'abonnement. Une erreur HTTP **rejette** la promesse : on la récupère avec `try/catch`, ou on la laisse remonter au gestionnaire d'erreurs global.
+- **Application multi-utilisateur : l'API est la seule source de vérité.** Pendant qu'un utilisateur supprime une entreprise, un collègue peut en créer une autre. Si la page retirait seulement la ligne supprimée dans une liste gardée en mémoire, elle afficherait un état faux. Après chaque écriture réussie, on appelle donc `reload()` sur la ressource, et la liste affichée est **toujours la dernière réponse de l'API**.
+- **Le service ne garde aucun état** : pas de signal `entreprises`, pas de `update()` sur une liste. Ses méthodes ne font que parler à l'API. C'est la ressource (dans la page) qui porte les données lues.
+- **Le piège** : faire `liste.filter(…)` ou `[...liste, nouvelle]` après une écriture. C'est rapide et ça paraît plus fluide, mais la liste devient une copie locale qui diverge de l'API. On l'appelle « optimistic update » : c'est une optimisation avancée, à réserver aux cas où on sait gérer les conflits.
+- **Tester une `Promise`** : on garde la promesse (`const suppression = service.supprimer(1);`), on répond à la requête (`flush`), puis on vérifie avec `await`, `resolves` ou `rejects`. Dans un test de page, après le `flush` du `DELETE`, la suite de la méthode `async` (le `reload()`) s'exécute plus tard. On la laisse finir (`await new Promise((resolve) => setTimeout(resolve))`), puis `TestBed.tick()` envoie le nouveau `GET`, auquel on répond.
+
+**Avant** (Observable, gardé en commentaire dans le service) :
+
+```ts
+supprimer(id: number): Observable<void> {
+  return this.http.delete<void>(`${this.apiUrl}/${id}`);
+}
+
+// dans la page
+this.entreprisesService
+  .supprimer(entreprise.id)
+  .pipe(takeUntilDestroyed(this.destroyRef))
+  .subscribe(() => this.entreprises.reload());
+```
+
+**Après** (`src/app/Feature-entreprises/data-access/entreprises-service.ts`) :
+
+```ts
+supprimer(id: number): Promise<void> {
+  return firstValueFrom(this.http.delete<void>(`${this.apiUrl}/${id}`));
+}
+```
+
+(`page-entreprises.ts`) :
+
+```ts
+// Après la suppression, on relit la liste sur l'API (elle a pu changer pour d'autres raisons).
+protected async supprimer(entreprise: Entreprise): Promise<void> {
+  if (!confirm(`Supprimer l'entreprise ${entreprise.nom} ?`)) {
+    return;
+  }
+  await this.entreprisesService.supprimer(entreprise.id);
+  this.entreprises.reload();
+}
+```
+
+Le test qui montre l'intérêt de relire l'API (`page-entreprises.spec.ts`) :
+
+```ts
+it("affiche la liste de l'API, même si un autre utilisateur l'a changée entre-temps", async () => {
+  boutonSupprimer('TechVision').click();
+  httpTesting.expectOne(`${URL_ENTREPRISES}/1`).flush(null);
+  await laisserFinirLesPromesses();
+  TestBed.tick();
+
+  const ajouteeParUnCollegue: Entreprise = { id: 3, nom: 'ShopNow', secteur: 'E-commerce' };
+  await repondre([entreprises[1], ajouteeParUnCollegue]);
+
+  expect(element.textContent).toContain('ShopNow');
+  expect(element.querySelectorAll('tbody tr').length).toBe(2);
+});
+```
+
+**Docs officielles** :
+- [RxJS : firstValueFrom](https://rxjs.dev/api/index/function/firstValueFrom)
+- [httpResource (`reload()`)](https://angular.dev/guide/http/http-resource)
+- [MDN : async / await](https://developer.mozilla.org/fr/docs/Learn_web_development/Extensions/Async_JS/Promises)
