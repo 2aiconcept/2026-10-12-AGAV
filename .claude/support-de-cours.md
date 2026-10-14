@@ -29,6 +29,7 @@ Modèle de notion, à recopier :
 4. [HTTP et services](#4-http-et-services)
 5. [Formulaires](#5-formulaires)
 6. [Tests unitaires](#6-tests-unitaires)
+7. [Tests e2e avec Playwright](#7-tests-e2e-avec-playwright)
 
 ## 1. Démarrer une application Angular 22
 
@@ -322,17 +323,17 @@ it('signale le lien de la page courante avec aria-current', async () => {
 </div>
 ```
 
-Utilisation dans la page de connexion. Plusieurs éléments peuvent viser le même slot : ils s'affichent dans l'ordre où la page les écrit, et un composant peut lui-même porter l'attribut (`<app-logo slotStart />`). Mise en page de la colonne en 3.6 (`src/app/Feature-auth/pages/page-auth/page-auth.html`) :
+Utilisation dans la page de connexion. Plusieurs éléments peuvent viser le même slot (ils s'affichent dans l'ordre où la page les écrit), et un composant peut lui-même porter l'attribut (`<app-logo slotStart />`). Ici, les trois blocs de la colonne gauche ont finalement été regroupés dans une seule `<section slotStart aria-label="…">`. L'audit d'accessibilité (7.1) demandait que tout le contenu soit dans un repère. Mise en page de la colonne en 3.6 (`src/app/Feature-auth/pages/page-auth/page-auth.html`) :
 
 ```html
 <app-layout-slice>
-  <app-logo slotStart />
+  <section slotStart class="d-flex flex-column flex-grow-1" aria-label="Présentation du Mini-CRM">
+    <app-logo />
+    <div class="my-auto py-5">…accroche, titre, sous-titre…</div>
+    <p class="mb-0 small text-body-secondary">© 2026 Liane</p>
+  </section>
 
-  <div slotStart class="my-auto py-5">…accroche, titre, sous-titre…</div>
-
-  <p slotStart class="mb-0 small text-body-secondary">© 2026 Liane</p>
-
-  <div slotEnd>formulaire</div>
+  <main slotEnd class="w-100 d-flex justify-content-center">…formulaire…</main>
 </app-layout-slice>
 ```
 
@@ -639,7 +640,7 @@ it('garde au plus deux initiales', () => {
 **En bref** : dans une colonne flex, `my-auto` centre un bloc verticalement entre ses voisins. `data-bs-theme="dark"` passe une zone en thème sombre : les couleurs « texte » de Bootstrap y deviennent lisibles sur fond foncé.
 
 **Explication** :
-- **Placement** : la colonne gauche de `LayoutSlice` est en `d-flex flex-column`. Avec trois enfants (logo, texte, copyright), `my-auto` sur celui du milieu prend tout l'espace libre au-dessus et en dessous. Le logo reste en haut, le copyright en bas, le texte au centre, sans CSS. (`mt-auto` seul pousserait un bloc tout en bas.)
+- **Placement** : la colonne gauche de `LayoutSlice` est en `d-flex flex-column`. La page y projette une `<section>`, elle aussi en `d-flex flex-column`, et `flex-grow-1` pour occuper toute la hauteur. Elle contient trois enfants (logo, texte, copyright) : `my-auto` sur celui du milieu prend tout l'espace libre au-dessus et en dessous. Le logo reste en haut, le copyright en bas, le texte au centre, sans CSS. (`mt-auto` seul pousserait un bloc tout en bas.) La `<section aria-label>` sert de repère d'accessibilité (voir 7.1).
 - **Couleurs** : `text-body-secondary` et `text-primary-emphasis` sont prévues pour un fond clair. Sur `bg-dark`, elles seraient trop sombres. Posé sur la colonne, `data-bs-theme="dark"` (mode couleur de Bootstrap 5.3) redéfinit les variables CSS de cette zone seulement : `text-body-secondary` devient un gris clair et `text-primary-emphasis` un bleu clair, tous deux au contraste AA.
 - **Le piège** : une couleur « vive » sur fond sombre (`text-primary`, `text-danger`) donne souvent un contraste insuffisant pour du petit texte. On vérifie le contraste, et on préfère les variantes `-emphasis` du thème sombre.
 - **Réutilisation** : le logo n'est pas recopié, on réutilise le composant `Logo`, non cliquable ici.
@@ -647,15 +648,21 @@ it('garde au plus deux initiales', () => {
 **Dans notre appli** (`src/app/Feature-auth/pages/page-auth/page-auth.html`) :
 
 ```html
-<div slotStart class="my-auto py-5">
-  <p class="mb-3 small fw-bold text-uppercase text-primary-emphasis">Mini-CRM</p>
-  <h1 class="display-5 fw-bold mb-3 w-75">
-    Vos entreprises, contacts et opportunités, au même endroit.
-  </h1>
-  <p class="mb-0 text-body-secondary">
-    Connectez-vous pour retrouver votre portefeuille commercial.
-  </p>
-</div>
+<section slotStart class="d-flex flex-column flex-grow-1" aria-label="Présentation du Mini-CRM">
+  <app-logo />
+
+  <div class="my-auto py-5">
+    <p class="mb-3 small fw-bold text-uppercase text-primary-emphasis">Mini-CRM</p>
+    <h1 class="display-5 fw-bold mb-3 w-75">
+      Vos entreprises, contacts et opportunités, au même endroit.
+    </h1>
+    <p class="mb-0 text-body-secondary">
+      Connectez-vous pour retrouver votre portefeuille commercial.
+    </p>
+  </div>
+
+  <p class="mb-0 small text-body-secondary">© 2026 Liane</p>
+</section>
 ```
 
 **Docs officielles** :
@@ -1755,3 +1762,77 @@ Tous les fichiers `.spec.ts` du projet suivent ce modèle et sont commentés lig
 - [Tester les services](https://angular.dev/guide/testing/services)
 - [Tester les requêtes HTTP](https://angular.dev/guide/http/testing)
 - [Vitest : API (expect, vi.fn, vi.spyOn)](https://vitest.dev/api/)
+
+## 7. Tests e2e avec Playwright
+
+### 7.1 Installer Playwright et tester un parcours utilisateur
+
+**En bref** : un test e2e pilote un **vrai navigateur** sur la **vraie application**, comme un utilisateur : il clique, tape, et vérifie ce qui s'affiche. On l'utilise pour les **parcours complets** (se connecter, ajouter une entreprise…), et on laisse le détail aux tests unitaires.
+
+**Explication** :
+- **Installation** : `npm install --save-dev @playwright/test @axe-core/playwright`, puis `npx playwright install` pour les navigateurs de test (Chromium, Firefox, WebKit). Tout est détaillé pour les apprenants dans `playwright.md`, à la racine du projet.
+- **Configuration** (`playwright.config.ts`) :
+  - `testDir: './e2e'` ;
+  - `baseURL` pour écrire `page.goto('/connexion')` ;
+  - un **projet par navigateur** ;
+  - `webServer`, qui lance `npm start` tout seul avant les tests.
+- **Ce qu'il faut tester** : commencer, comme en unitaire, par un bloc de commentaire qui liste les parcours à vérifier et ce qu'on ne teste pas. Puis Arrange / Act / Assert dans chaque test.
+- **Localisateurs accessibles** : `getByRole('button', { name: 'Se connecter' })`, `getByLabel('Adresse e-mail')`, `getByText(…)`. On trouve les éléments comme un utilisateur ou un lecteur d'écran. Jamais par classe CSS ni XPath.
+  - **Piège** : `getByLabel('Nom')` trouve aussi « Prénom », car par défaut il cherche un texte **contenu** dans le libellé. On ajoute `{ exact: true }`.
+  - **Piège** : un libellé « Nom * » ne correspond plus exactement à « Nom ». On utilise le **nom accessible** : `getByRole('textbox', { name: 'Nom', exact: true })`, qui ignore l'astérisque en `aria-hidden`.
+- **Assertions « web-first »** : `await expect(page).toHaveURL('/entreprises')`, `await expect(locator).toBeVisible()`… réessaient automatiquement jusqu'à ce que la condition soit vraie (5 secondes par défaut). On n'écrit **jamais** de pause fixe (`waitForTimeout`) : trop courte, le test échoue au hasard ; trop longue, il est lent.
+- **Chaque test est indépendant** : Playwright donne à chaque test un onglet neuf (`{ page }`). Les données viennent d'une fausse API créée dans `beforeEach`.
+- **Simuler l'API avec `page.route()`** : l'application croit parler à la vraie API. Les tests ne touchent pas aux données réelles, partagées entre stagiaires, et donnent toujours le même résultat. On peut aussi simuler une panne (erreur 500) pour tester l'affichage d'erreur.
+- **Se connecter une seule fois** : un projet `setup` se connecte par le formulaire et enregistre l'état du navigateur (`storageState`, qui contient le `localStorage` où l'application garde la session). Les autres projets le rechargent et démarrent connectés. Les tests de connexion repartent d'un état vide : `test.use({ storageState: { cookies: [], origins: [] } })`.
+- **Boîtes `confirm()`** : Playwright les refuse par défaut. `page.once('dialog', (dialogue) => dialogue.accept())` répond « OK » à la prochaine.
+- **Accessibilité automatique** : `new AxeBuilder({ page }).analyze()` audite la page, et on attend `violations` vide. Dans le mini-CRM, axe a trouvé de vrais problèmes sur la page de connexion :
+  - des contrastes insuffisants ;
+  - du contenu hors repère.
+
+  Ils ont été corrigés dans l'application, pas en assouplissant le test.
+
+**Dans notre appli** (`e2e/entreprises.spec.ts`, extrait) :
+
+```ts
+test('ajoute une entreprise et la retrouve dans la liste', async ({ page }) => {
+  // Arrange : on part de la liste et on clique sur « Ajouter une entreprise »
+  // (c'est un lien : rôle « link »).
+  await page.goto('/entreprises');
+  await page.getByRole('link', { name: 'Ajouter une entreprise' }).click();
+  await expect(page).toHaveURL('/entreprises/ajouter');
+
+  // Act : on remplit le formulaire et on valide.
+  await champNom(page).fill('DataCorp');
+  await page.getByLabel('Secteur').fill('Data & IA');
+  await page.getByLabel('Téléphone').fill('05 67 89 01 23');
+  await page.getByRole('button', { name: 'Ajouter' }).click();
+
+  // Assert : retour à la liste, qui affiche la nouvelle entreprise (relue sur l'API)…
+  await expect(page).toHaveURL('/entreprises');
+  await expect(ligne(page, 'DataCorp')).toContainText('Data & IA');
+  await expect(page.getByText('3 entreprise(s) affichée(s)')).toBeVisible();
+});
+```
+
+La fausse API (`e2e/support/fausse-api.ts`, extrait) :
+
+```ts
+// Branche la fausse API sur la page. À appeler AVANT page.goto(), sinon les premières
+// requêtes partiraient vers la vraie API.
+async brancher(): Promise<void> {
+  // « ** » : toutes les URL qui commencent par l'adresse de l'API.
+  await this.page.route(`${URL_API}/**`, (route) => this.repondre(route));
+}
+```
+
+**Commandes** : `npm run e2e` (3 navigateurs), `npm run e2e:chromium` (rapide), `npm run e2e:ui` (pas à pas, le plus pédagogique), `npm run e2e:report`, `npm run e2e:codegen` (enregistre vos clics et génère le code).
+
+**Docs officielles** :
+- [Playwright : installation](https://playwright.dev/docs/intro)
+- [Écrire des tests](https://playwright.dev/docs/writing-tests)
+- [Localisateurs](https://playwright.dev/docs/locators)
+- [Assertions](https://playwright.dev/docs/test-assertions)
+- [Authentification (setup, storageState)](https://playwright.dev/docs/auth)
+- [Simuler une API (page.route)](https://playwright.dev/docs/mock)
+- [Tests d'accessibilité](https://playwright.dev/docs/accessibility-testing)
+- [WCAG 2.2 : contraste minimum (1.4.3)](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)

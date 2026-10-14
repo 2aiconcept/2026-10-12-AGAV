@@ -94,7 +94,7 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
 #### PageAuth (`Feature-auth/pages/page-auth/page-auth.ts`)
 - **Type** : smart
 - **Rôle** : page de connexion et d'inscription, en deux colonnes avec `LayoutSlice`.
-  - Colonne gauche (`slotStart`) : `<app-logo>` en haut, au centre (`my-auto`) l'accroche « Mini-CRM », le titre `h1` et l'invitation, en bas le copyright. Couleurs du thème sombre de la colonne (`text-body-secondary`, `text-primary-emphasis`).
+  - Colonne gauche (`slotStart`) : une `<section aria-label="Présentation du Mini-CRM">` (repère d'accessibilité) qui contient `<app-logo>` en haut, au centre (`my-auto`) l'accroche « Mini-CRM », le titre `h1` et l'invitation, en bas le copyright. Couleurs du thème sombre de la colonne (`text-body-secondary`, `text-primary-emphasis`).
   - Colonne droite (`slotEnd`) : un `<main>` qui contient `<app-form-auth>`.
 - **Entrées** : événements `connexion` (`Login`) et `inscription` (`Register`) de `FormAuth`.
 - **Fonctionnement** : `seConnecter()` / `creerUnCompte()` affectent `envoi$` (`Observable<ResultatEnvoi>`), construit à partir de l'observable du service : `tap` (navigation vers `/entreprises` en cas de succès), `map` (`{ erreur: null }`), `catchError` (message d'erreur lisible). La requête part quand le pipe `async` du template s'abonne (`@let resultat = envoi$ | async`). Chaque nouvel envoi remplace `envoi$` : le pipe `async` se désabonne de l'ancien. Pendant l'attente (`envoi$` défini et `resultat` encore `null`), `FormAuth` reçoit `isEnvoiEnCours = true`.
@@ -366,6 +366,19 @@ Routes de la feature : `Feature-contacts/contacts.routes.ts` (voir section 2).
 - **Enregistré dans** : `app.config.ts`, après `jwtInterceptor` (`withInterceptors([jwtInterceptor, errorsInterceptor])`).
 - **Écart d'architecture** : dans `shared/`, mais importe `AuthService` de la feature auth (voir 1.1).
 
+## 4 bis. Tests e2e (Playwright)
+
+Guide pour les apprenants (installation, commandes, choix) : **`playwright.md`** à la racine du projet.
+
+- **Configuration** : `playwright.config.ts`. Les tests sont dans `e2e/`. Projets : `setup` (connexion), puis `chromium`, `firefox` et `webkit`, qui dépendent de `setup`. `webServer` lance `npm start` (réutilisé s'il tourne déjà). `baseURL` vaut `http://localhost:4200`, la locale est `fr-FR`, et une trace est enregistrée au premier nouvel essai.
+- **`e2e/support/fausse-api.ts`** (`FausseApi`) : simule l'API avec `page.route()` sur `environment.apiBaseUrl/**` : `/auth/login` (compte de démo `user@test.com` / `password123`, sinon 401), `/auth/register` (400 si l'e-mail est déjà pris), CRUD `/entreprises`. Les données sont propres à chaque test. `simulerPanneDeLaListe()` force une erreur 500 sur la liste. Les types sont réutilisés depuis l'application.
+- **`e2e/support/session.ts`** : chemin du fichier de session (`e2e/.auth/utilisateur.json`, ignoré par git).
+- **`e2e/auth.setup.ts`** : se connecte une fois par le formulaire et enregistre l'état du navigateur (`storageState`). Les projets de navigateurs démarrent ainsi connectés.
+- **`e2e/auth.spec.ts`** (démarre déconnecté) : redirection d'une page protégée vers `/connexion`, connexion réussie, mauvais mot de passe, formulaire vide, inscription réussie, e-mail déjà utilisé, déconnexion, audit axe de `/connexion`.
+- **`e2e/entreprises.spec.ts`** (démarre connecté) : liste et compteur, erreur de chargement, ajout, validation du nom, modification, suppression confirmée, suppression annulée, audit axe de `/entreprises`.
+- **Commandes** : `npm run e2e`, `e2e:chromium`, `e2e:ui`, `e2e:headed`, `e2e:report`, `e2e:codegen`.
+- **Dépendances** : `@playwright/test`, `@axe-core/playwright` (devDependencies). Navigateurs installés avec `npx playwright install`.
+
 ## 5. Layout
 
 _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
@@ -400,6 +413,8 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - `authGuard` sur la coque `AppShell` : pages de l'application réservées aux utilisateurs connectés.
 - Entreprises : feature complète (liste, ajout, modification, suppression), commentée ligne par ligne. Page de modification `PageModifierEntreprise` (route `/entreprises/:id/modifier`). Page d'ajout (`PageAjouterEntreprise`) et formulaire partagé `FormEntreprise` en Signal Forms (validation du nom et du téléphone, erreurs accessibles), avec leurs tests.
 - **Tests unitaires relus et commentés** : les 28 fichiers `.spec.ts` (142 tests, tous verts) commencent par un bloc « Ce qu'il faut tester » (comportements vérifiés, ce qu'on ne teste pas, stratégie), chaque ligne est commentée pour les apprenants, et chaque test suit Arrange / Act / Assert. La relecture a corrigé `app.spec.ts` et `app-shell.spec.ts` (il manquait `provideRouter([])`), écrit de vrais tests pour `authGuard`, et rendu plus solides plusieurs tests (ordre des slots, token relu à chaque requête, faux services recréés à chaque test, sélection par texte ou libellé).
+- **Tests e2e Playwright** : installation (`@playwright/test`, `@axe-core/playwright`, navigateurs), `playwright.config.ts`, scripts `npm run e2e*`, fausse API, connexion factorisée (`setup` + `storageState`), parcours auth et entreprises commentés pour les apprenants, audit axe. 16 tests × 3 navigateurs + setup = 49 tests, tous verts. Guide `playwright.md`.
+- **Accessibilité corrigée grâce à axe** (page de connexion) : la colonne de présentation est dans une `<section aria-label="Présentation du Mini-CRM">` (repère) ; contraste relevé pour le bouton « Afficher le mot de passe » (`btn-outline-dark`) et les liens-boutons « Créer un compte » / « Se connecter » (`text-primary-emphasis`).
 - `errorsInterceptor` : sur le modèle de la doc (`tap`), 401 hors `/auth/` → déconnexion et `/connexion`, 500 → `ErrorHandler`. Avec ses tests.
 - Feature auth complète, requêtes en observables : `AuthService` (connexion, inscription, déconnexion, session en `signal()` + `localStorage`, d'abord écrite avec un `BehaviorSubject`), `FormAuth` (formulaire réactif, connexion et inscription), `PageAuth` (pipe `async`, navigation, messages d'erreur). Avec leurs tests.
 
@@ -408,6 +423,5 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - Retirer de `App` les imports inutilisés (`LayoutSlice`, `LayoutTopBottom`, `LayoutPages` : avertissements `NG8113` au build).
 - Supprimer l'écart d'architecture de `Header` (`shared/` qui importe `AuthService` de la feature auth) : session dans un service de `shared/`, ou données passées par `AppShell`.
 - Aligner les dossiers sur l'architecture cible (voir l'écart en 1.1).
-- Installer et configurer Playwright (dossier `e2e/`, scripts `npm run e2e*`).
 - Budget du bundle initial dépassé au build (518 kB pour 500 kB, dont 231 kB de CSS Bootstrap ; 103 kB transférés) : à examiner.
 - Features : `auth`, `entreprises`, `contacts`, `opportunites`.

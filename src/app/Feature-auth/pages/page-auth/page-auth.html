@@ -1,18 +1,21 @@
 <app-layout-slice>
   <!-- slotStart projeté à gauche à la place de ng-content -->
-  <app-logo slotStart />
+  <!-- Une section nommée (aria-label) est un repère : tout le contenu de la page est dans un repère. -->
+  <section slotStart class="d-flex flex-column flex-grow-1" aria-label="Présentation du Mini-CRM">
+    <app-logo />
 
-  <div slotStart class="my-auto py-5">
-    <p class="mb-3 small fw-bold text-uppercase text-primary-emphasis">Mini-CRM</p>
-    <h1 class="display-5 fw-bold mb-3 w-75">
-      Vos entreprises, contacts et opportunités, au même endroit.
-    </h1>
-    <p class="mb-0 text-body-secondary">
-      Connectez-vous pour retrouver votre portefeuille commercial.
-    </p>
-  </div>
+    <div class="my-auto py-5">
+      <p class="mb-3 small fw-bold text-uppercase text-primary-emphasis">Mini-CRM</p>
+      <h1 class="display-5 fw-bold mb-3 w-75">
+        Vos entreprises, contacts et opportunités, au même endroit.
+      </h1>
+      <p class="mb-0 text-body-secondary">
+        Connectez-vous pour retrouver votre portefeuille commercial.
+      </p>
+    </div>
 
-  <p slotStart class="mb-0 small text-body-secondary">© 2026 Liane</p>
+    <p class="mb-0 small text-body-secondary">© 2026 Liane</p>
+  </section>
 
   <!-- slotEnd projeté à droite à la place de ng-content -->
   @let resultat = envoi$ | async;
