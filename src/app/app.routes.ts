@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { AppShell } from './shared/app-shell/app-shell';
+import { authGuard } from './Feature-auth/data-access/auth-guard';
 
 export const routes: Routes = [
   {
@@ -10,6 +11,7 @@ export const routes: Routes = [
   {
     path: '',
     component: AppShell,
+    canActivate: [authGuard],
     children: [
       {
         path: 'entreprises',
