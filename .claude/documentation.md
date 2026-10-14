@@ -87,7 +87,7 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
 
 ### 3.1 auth
 
-> **Volontairement sans signals pour les données.** La feature auth sert d'exemple de l'écriture « classique » : `HttpClient` qui renvoie des `Observable`, `BehaviorSubject` pour l'état partagé, pipe `async` dans la page, formulaire réactif avec `FormBuilder`. Les autres formulaires utiliseront les Signal Forms. Cette feature sera basculée en signals plus tard (étape 3).
+> **Écriture « classique » pour les échanges HTTP.** La feature auth sert d'exemple : `HttpClient` qui renvoie des `Observable`, pipe `async` dans la page, formulaire réactif avec `FormBuilder`. Les autres formulaires utiliseront les Signal Forms. Seule la **session** est passée en `signal()` (exercice : elle était d'abord dans un `BehaviorSubject`, voir le support de cours 4.5). Le reste sera basculé en signals plus tard (étape 3).
 
 #### PageAuth (`Feature-auth/pages/page-auth/page-auth.ts`)
 - **Type** : smart
@@ -114,15 +114,15 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
 - **Utilisé par** : `PageAuth`.
 
 #### AuthService (`Feature-auth/data-access/auth-service.ts`)
-- **Type** : service (`@Service()`), sans signals.
+- **Type** : service (`@Service()`). Requêtes en observables, session en signal.
 - **Rôle** : appels HTTP d'authentification et session de l'utilisateur.
 - **Méthodes** (observables froids : la requête ne part qu'à l'abonnement) :
   - `connexion(identifiants: Login): Observable<User>` : `POST /auth/login`.
   - `creerUnCompte(register: Register): Observable<User>` : `POST /auth/register`.
   - Les deux enregistrent la session reçue au passage (`tap`), seulement en cas de succès.
   - `deconnexion(): void` : efface la session.
-- **État** : `session$` (`Observable<User | null>`), exposé par `asObservable()` d'un `BehaviorSubject` privé (observable chaud : garde la valeur courante et la partage entre abonnés). Initialisé au démarrage depuis le `localStorage` (clé `mini-crm.session`, JSON illisible ignoré). Lu par le header ; servira aussi au guard et à l'interceptor.
-- **Utilisé par** : `PageAuth` (`connexion`, `creerUnCompte`), `Header` (`session$`, `deconnexion`).
+- **État** : `session` (`Signal<User | null>`, lecture seule), exposé par `asReadonly()` d'un `signal()` privé que seul le service modifie (`set()`). Initialisé au démarrage depuis le `localStorage` (clé `mini-crm.session`, JSON illisible ignoré). Lu par le header (`session()`) ; servira aussi au guard et à l'interceptor.
+- **Utilisé par** : `PageAuth` (`connexion`, `creerUnCompte`), `Header` (`session`, `deconnexion`).
 
 #### Login (`Feature-auth/models/login.ts`)
 - **Type** : modèle (interface)
@@ -193,9 +193,9 @@ Routes de la feature : `Feature-contacts/contacts.routes.ts` (voir section 2).
 ## 4. Shared
 
 #### Header (`shared/header/header.ts`)
-- **Type** : composant qui injecte des services (`AuthService`, `Router`). Importe aussi `AsyncPipe`, la directive `RouterLink` et les composants `Logo`, `Nav`, `BadgeUtilisateur` et `ButtonSmall`.
+- **Type** : composant qui injecte des services (`AuthService`, `Router`). Importe aussi la directive `RouterLink` et les composants `Logo`, `Nav`, `BadgeUtilisateur` et `ButtonSmall`.
 - **Rôle** : bandeau en haut de l'application (`<header>`, `bg-dark`). De gauche à droite : `<app-logo>` dans un lien vers `/entreprises`, le menu `<app-nav>` (qui prend la place libre avec `flex-grow-1`), puis, **seulement s'il y a une session**, `<app-badge-utilisateur>` (`session.user`) et le bouton « Déconnexion » (`<app-button-small>`, contour `light`).
-- **Données** : `@if (authService.session$ | async; as session)`. Le badge et le bouton apparaissent ou disparaissent dès que la session change (connexion, déconnexion).
+- **Données** : `@if (authService.session(); as session)` (lecture du signal, sans pipe `async`). Le badge et le bouton apparaissent ou disparaissent dès que la session change (connexion, déconnexion).
 - **Déconnexion** : `logout()` appelle `AuthService.deconnexion()` puis navigue vers `/connexion`.
 - **Écart d'architecture assumé** : `Header` est dans `shared/` mais importe `AuthService` de la feature auth, et injecte un service alors qu'il est dans `shared/` (voir 1.1). C'est un choix de simplicité pour la formation, à corriger plus tard : session dans un service de `shared/`, ou données passées par `AppShell`.
 - **Style** : uniquement des classes Bootstrap, `header.css` est vide.
@@ -285,7 +285,7 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 
 ## 6. État d'avancement
 
-**Étape de la progression des données** : 1 – HTTP avec observables froids (en cours). La feature auth contient aussi l'exemple de l'étape 2 (`BehaviorSubject` pour la session) et restera volontairement sans signals jusqu'à la bascule.
+**Étape de la progression des données** : 1 – HTTP avec observables froids (en cours). La session de la feature auth a servi d'exemple à l'étape 2 (`BehaviorSubject`), puis a été basculée en `signal()` (premier pas de l'étape 3). Les requêtes HTTP de la feature auth restent en observables + pipe `async`.
 
 ### Fait
 
@@ -302,13 +302,13 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - `Logo` : composant dumb extrait du header, et ses tests.
 - `ButtonSmall` : bouton réutilisable (signal inputs, `output()`), utilisé pour « Déconnexion » dans le header. Avec ses tests.
 - `BadgeUtilisateur` et le pipe `initiales` : bloc utilisateur extrait du header, avec leurs tests.
-- `Header` branché sur la session : utilisateur et bouton « Déconnexion » affichés seulement s'il y a une session (`session$ | async`), déconnexion réelle. Avec ses tests.
+- `Header` branché sur la session : utilisateur et bouton « Déconnexion » affichés seulement s'il y a une session (`authService.session()`), déconnexion réelle. Avec ses tests.
 - Routes : `/connexion` hors coque, pages de l'application dans la coque `AppShell` (header + `<router-outlet>` enfant).
 - `PageAuth` : colonne de présentation conforme à la maquette (`LayoutSlice` + `Logo`), avec ses tests. Le formulaire reste à faire.
 - Environnements : `environment.ts` / `environment.prod.ts` avec `apiBaseUrl`, remplacement automatique au build de production (`fileReplacements`).
 - API documentée depuis le Swagger dans `.claude/endpoints-et-donnees.md` (endpoints, modèles, erreurs).
 - `provideHttpClient()` dans `app.config.ts`.
-- Feature auth complète, sans signals pour les données : `AuthService` (connexion, inscription, déconnexion, session en `BehaviorSubject` + `localStorage`), `FormAuth` (formulaire réactif, connexion et inscription), `PageAuth` (pipe `async`, navigation, messages d'erreur). Avec leurs tests.
+- Feature auth complète, requêtes en observables : `AuthService` (connexion, inscription, déconnexion, session en `signal()` + `localStorage`, d'abord écrite avec un `BehaviorSubject`), `FormAuth` (formulaire réactif, connexion et inscription), `PageAuth` (pipe `async`, navigation, messages d'erreur). Avec leurs tests.
 
 ### À faire
 

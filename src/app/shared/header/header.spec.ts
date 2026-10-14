@@ -1,6 +1,6 @@
+import { signal, WritableSignal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { BehaviorSubject } from 'rxjs';
 import { AuthService } from '../../Feature-auth/data-access/auth-service';
 import { User } from '../../Feature-auth/models/user';
 import { Header } from './header';
@@ -8,8 +8,8 @@ import { Header } from './header';
 describe('Header', () => {
   let fixture: ComponentFixture<Header>;
   let element: HTMLElement;
-  let session: BehaviorSubject<User | null>;
-  let fauxAuthService: { session$: BehaviorSubject<User | null>; deconnexion: () => void };
+  let session: WritableSignal<User | null>;
+  let fauxAuthService: { session: WritableSignal<User | null>; deconnexion: () => void };
 
   const sessionChris: User = {
     token: 'un-token-jwt',
@@ -17,8 +17,8 @@ describe('Header', () => {
   };
 
   beforeEach(async () => {
-    session = new BehaviorSubject<User | null>(sessionChris);
-    fauxAuthService = { session$: session, deconnexion: vi.fn(() => session.next(null)) };
+    session = signal<User | null>(sessionChris);
+    fauxAuthService = { session, deconnexion: vi.fn(() => session.set(null)) };
 
     await TestBed.configureTestingModule({
       imports: [Header],
@@ -74,7 +74,7 @@ describe('Header', () => {
 
   describe('sans session', () => {
     beforeEach(async () => {
-      session.next(null);
+      session.set(null);
       await fixture.whenStable();
     });
 
@@ -84,7 +84,7 @@ describe('Header', () => {
     });
 
     it("affiche l'utilisateur dès qu'une session arrive", async () => {
-      session.next(sessionChris);
+      session.set(sessionChris);
       await fixture.whenStable();
 
       expect(element.textContent).toContain('Chris Martin');

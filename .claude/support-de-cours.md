@@ -721,6 +721,8 @@ it('envoie les données du compte en POST sur /auth/register', () => {
 
 ### 4.2 Garder un état partagé dans un service : `BehaviorSubject` (observable chaud)
 
+> **Version d'origine** : la session de `AuthService` a ensuite été basculée en `signal()` (voir 4.5). L'extrait ci-dessous est l'« avant », conservé pour comprendre la différence.
+
 **En bref** : un `BehaviorSubject` garde une **valeur courante** et la diffuse à tous ses abonnés. C'est un observable **chaud**, à l'inverse de l'observable froid de `HttpClient`.
 
 **Explication** :
@@ -817,7 +819,7 @@ private suivreEnvoi(envoi: Observable<User>): Observable<ResultatEnvoi> {
 </main>
 ```
 
-**Afficher ou masquer selon un observable : `@if (… | async; as …)`.** Le header lit directement la session du service. `as session` donne un nom à la valeur reçue, réutilisable dans le bloc. Comme un `BehaviorSubject` émet tout de suite sa valeur courante, puis chaque changement, le badge et le bouton apparaissent à la connexion et disparaissent à la déconnexion, sans autre code (`src/app/shared/header/header.html`) :
+**Afficher ou masquer selon un observable : `@if (… | async; as …)`** (version d'origine du header, remplacée par un signal en 4.5). Le header lisait directement la session du service. `as session` donne un nom à la valeur reçue, réutilisable dans le bloc. Comme un `BehaviorSubject` émet tout de suite sa valeur courante, puis chaque changement, le badge et le bouton apparaissent à la connexion et disparaissent à la déconnexion, sans autre code (`src/app/shared/header/header.html`) :
 
 ```html
 @if (authService.session$ | async; as session) {
@@ -902,3 +904,67 @@ protected valider(): void {
 - [Formulaires typés](https://angular.dev/guide/forms/typed-forms)
 - [Valider les saisies](https://angular.dev/guide/forms/form-validation)
 - [Bootstrap : validation des formulaires](https://getbootstrap.com/docs/5.3/forms/validation/)
+
+### 4.5 Avant / après : du `BehaviorSubject` au `signal()` pour un état partagé
+
+**En bref** : un `signal()` remplace avantageusement un `BehaviorSubject` pour garder une valeur courante dans un service. On le lit en l'appelant (`session()`), sans abonnement ni pipe `async`.
+
+**Explication** : exercice de bascule sur la session de `AuthService`. On garde exactement le même principe : valeur courante, privée en écriture, publique en lecture. Seules les API changent :
+
+| `BehaviorSubject` (avant) | `signal()` (après) |
+|---|---|
+| `new BehaviorSubject<User \| null>(valeur)` | `signal<User \| null>(valeur)` |
+| `session.next(valeur)` | `sessionCourante.set(valeur)` |
+| `readonly session$ = session.asObservable()` | `readonly session = sessionCourante.asReadonly()` |
+| Lecture : `session$ \| async` (abonnement) | Lecture : `session()` (appel de fonction) |
+| `AsyncPipe` à importer dans le composant | Rien à importer |
+| Valeur synchrone : `session.value` (déconseillé) | `session()` partout, dans le code comme dans le template |
+
+Pourquoi c'est plus simple :
+- plus d'abonnement, donc rien à désabonner ;
+- la même lecture `session()` partout : dans le template, dans un `computed()`, dans le code d'un guard ;
+- Angular sait exactement quels templates lisent le signal, et ne met à jour qu'eux (zoneless).
+
+Ce qui ne change pas : les **requêtes HTTP** restent des observables. `connexion()` renvoie toujours `Observable<User>`, et `tap()` y écrit dans le signal. Un signal garde une **valeur** ; un observable décrit un **flux d'événements dans le temps** (une réponse HTTP qui arrivera plus tard). Le piège : vouloir tout transformer en signal. Pour lire des données HTTP en signals, on utilisera `httpResource()` à l'étape 3.
+
+Pour les tests, le faux service expose un `signal()` au lieu d'un `BehaviorSubject`, et `session.set(null)` simule une déconnexion.
+
+**Dans notre appli**, avant (`src/app/Feature-auth/data-access/auth-service.ts`) :
+
+```ts
+private readonly session = new BehaviorSubject<User | null>(lireSessionStockee());
+readonly session$ = this.session.asObservable();
+
+private enregistrerSession(session: User): void {
+  localStorage.setItem(CLE_SESSION, JSON.stringify(session));
+  this.session.next(session);
+}
+```
+
+Après :
+
+```ts
+// Seul le service modifie la session ; le reste de l'application la lit en lecture seule.
+private readonly sessionCourante = signal<User | null>(lireSessionStockee());
+readonly session = this.sessionCourante.asReadonly();
+
+private enregistrerSession(session: User): void {
+  localStorage.setItem(CLE_SESSION, JSON.stringify(session));
+  this.sessionCourante.set(session);
+}
+```
+
+Header, avant / après (`src/app/shared/header/header.html`) :
+
+```html
+<!-- avant : abonnement par le pipe async (AsyncPipe importé dans le composant) -->
+@if (authService.session$ | async; as session) { … }
+
+<!-- après : lecture du signal -->
+@if (authService.session(); as session) { … }
+```
+
+**Docs officielles** :
+- [Signals](https://angular.dev/guide/signals)
+- [Signals en lecture seule (`asReadonly`)](https://angular.dev/api/core/WritableSignal)
+- [RxJS interop (quand mélanger observables et signals)](https://angular.dev/ecosystem/rxjs-interop)

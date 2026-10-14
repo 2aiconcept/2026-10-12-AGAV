@@ -5,7 +5,7 @@
 
   <app-nav class="flex-grow-1"></app-nav>
 
-  @if (authService.session$ | async; as session) {
+  @if (authService.session(); as session) {
     <app-badge-utilisateur [utilisateur]="session.user" />
 
     <app-button-small libelle="Déconnexion" couleur="light" isOutline (action)="logout()" />

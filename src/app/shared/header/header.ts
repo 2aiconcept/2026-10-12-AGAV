@@ -1,5 +1,4 @@
 import { Component, inject } from '@angular/core';
-import { AsyncPipe } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../Feature-auth/data-access/auth-service';
 import { BadgeUtilisateur } from '../badge-utilisateur/badge-utilisateur';
@@ -10,7 +9,7 @@ import { Nav } from '../nav/nav';
 const PAGE_APRES_DECONNEXION = '/connexion';
 
 @Component({
-  imports: [AsyncPipe, RouterLink, Logo, Nav, ButtonSmall, BadgeUtilisateur],
+  imports: [RouterLink, Logo, Nav, ButtonSmall, BadgeUtilisateur],
   selector: 'app-header',
   styleUrl: './header.css',
   templateUrl: './header.html',

@@ -37,12 +37,6 @@ describe('AuthService', () => {
     httpTesting = TestBed.inject(HttpTestingController);
   }
 
-  function sessionCourante(): User | null {
-    let session: User | null = null;
-    service.session$.subscribe((valeur) => (session = valeur)).unsubscribe();
-    return session;
-  }
-
   beforeEach(() => {
     localStorage.clear();
   });
@@ -55,7 +49,7 @@ describe('AuthService', () => {
     it("n'a pas de session si rien n'est stocké", () => {
       creerService();
 
-      expect(sessionCourante()).toBeNull();
+      expect(service.session()).toBeNull();
     });
 
     it('reprend la session stockée dans le localStorage', () => {
@@ -63,7 +57,7 @@ describe('AuthService', () => {
 
       creerService();
 
-      expect(sessionCourante()).toEqual(sessionApi);
+      expect(service.session()).toEqual(sessionApi);
     });
 
     it('ignore une session stockée illisible', () => {
@@ -71,7 +65,7 @@ describe('AuthService', () => {
 
       creerService();
 
-      expect(sessionCourante()).toBeNull();
+      expect(service.session()).toBeNull();
     });
   });
 
@@ -94,12 +88,12 @@ describe('AuthService', () => {
       requete.flush(sessionApi);
     });
 
-    it('enregistre la session reçue et la diffuse', () => {
+    it('enregistre la session reçue', () => {
       service.connexion(identifiants).subscribe();
 
       httpTesting.expectOne(URL_LOGIN).flush(sessionApi);
 
-      expect(sessionCourante()).toEqual(sessionApi);
+      expect(service.session()).toEqual(sessionApi);
       expect(JSON.parse(localStorage.getItem(CLE_SESSION) ?? 'null')).toEqual(sessionApi);
     });
 
@@ -112,7 +106,7 @@ describe('AuthService', () => {
         .flush({ error: 'Email ou mot de passe incorrect' }, { status: 401, statusText: 'Unauthorized' });
 
       expect(statutErreur).toBe(401);
-      expect(sessionCourante()).toBeNull();
+      expect(service.session()).toBeNull();
       expect(localStorage.getItem(CLE_SESSION)).toBeNull();
     });
   });
@@ -143,7 +137,7 @@ describe('AuthService', () => {
       httpTesting.expectOne(URL_REGISTER).flush(sessionApi);
 
       expect(reponse).toEqual(sessionApi);
-      expect(sessionCourante()).toEqual(sessionApi);
+      expect(service.session()).toEqual(sessionApi);
     });
 
     it("transmet l'erreur si l'e-mail est déjà utilisé", () => {
@@ -161,13 +155,13 @@ describe('AuthService', () => {
   });
 
   describe('deconnexion', () => {
-    it('efface la session stockée et diffuse null', () => {
+    it('efface la session stockée et en mémoire', () => {
       localStorage.setItem(CLE_SESSION, JSON.stringify(sessionApi));
       creerService();
 
       service.deconnexion();
 
-      expect(sessionCourante()).toBeNull();
+      expect(service.session()).toBeNull();
       expect(localStorage.getItem(CLE_SESSION)).toBeNull();
     });
   });

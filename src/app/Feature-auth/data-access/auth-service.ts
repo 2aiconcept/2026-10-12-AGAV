@@ -1,6 +1,6 @@
-import { inject, Service } from '@angular/core';
+import { inject, Service, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, tap } from 'rxjs';
+import { Observable, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { Login } from '../models/login';
 import { Register } from '../models/register';
@@ -13,9 +13,9 @@ export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly apiUrl = environment.apiBaseUrl;
 
-  // Observable chaud : garde la session courante et la partage entre tous les abonnés.
-  private readonly session = new BehaviorSubject<User | null>(lireSessionStockee());
-  readonly session$ = this.session.asObservable();
+  // Seul le service modifie la session ; le reste de l'application la lit en lecture seule.
+  private readonly sessionCourante = signal<User | null>(lireSessionStockee());
+  readonly session = this.sessionCourante.asReadonly();
 
   connexion(identifiants: Login): Observable<User> {
     return this.http
@@ -31,12 +31,12 @@ export class AuthService {
 
   deconnexion(): void {
     localStorage.removeItem(CLE_SESSION);
-    this.session.next(null);
+    this.sessionCourante.set(null);
   }
 
   private enregistrerSession(session: User): void {
     localStorage.setItem(CLE_SESSION, JSON.stringify(session));
-    this.session.next(session);
+    this.sessionCourante.set(session);
   }
 }
 
