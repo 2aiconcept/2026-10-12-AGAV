@@ -15,22 +15,13 @@
   <p slotStart class="mb-0 small text-body-secondary">© 2026 Liane</p>
 
   <!-- slotEnd projeté à droite à la place de ng-content -->
-  <div slotEnd>
-    formulaire
-    <!-- <button
-      type="button"
-      (click)="
-        add({
-          id: 6,
-          nom: 'Test',
-          prenom: 'Gege',
-          email: 'camille.durand@finflow.fr',
-          telephone: '07 56 78 90 12',
-          entreprise_id: 4,
-        })
-      "
-    >
-      connexion
-    </button> -->
-  </div>
+  @let resultat = envoi$ | async;
+  <main slotEnd class="w-100 d-flex justify-content-center">
+    <app-form-auth
+      [erreur]="resultat?.erreur ?? null"
+      [isEnvoiEnCours]="envoi$ !== null && resultat === null"
+      (connexion)="seConnecter($event)"
+      (inscription)="creerUnCompte($event)"
+    />
+  </main>
 </app-layout-slice>

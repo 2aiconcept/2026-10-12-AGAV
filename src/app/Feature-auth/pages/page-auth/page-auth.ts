@@ -1,119 +1,58 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject } from '@angular/core';
+import { AsyncPipe } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Router } from '@angular/router';
+import { catchError, map, Observable, of, tap } from 'rxjs';
 import { LayoutSlice } from '../../../shared/layout-slice/layout-slice';
 import { Logo } from '../../../shared/logo/logo';
 import { AuthService } from '../../data-access/auth-service';
-import { BehaviorSubject, Observable, Subject } from 'rxjs';
+import { Login } from '../../models/login';
+import { Register } from '../../models/register';
+import { ResultatEnvoi } from '../../models/resultat-envoi';
+import { User } from '../../models/user';
+import { FormAuth } from '../../ui/form-auth/form-auth';
+
+const PAGE_APRES_CONNEXION = '/entreprises';
 
 @Component({
-  imports: [LayoutSlice, Logo],
+  imports: [AsyncPipe, LayoutSlice, Logo, FormAuth],
   selector: 'app-page-auth',
   styleUrl: './page-auth.css',
   templateUrl: './page-auth.html',
 })
 export default class PageAuth {
-  authService = inject(AuthService);
+  private readonly authService = inject(AuthService);
+  private readonly router = inject(Router);
 
-  readonly test = signal<string>('chris');
-  changeValue() {
-    this.test.set('julien');
+  // Observable froid : la requête part quand le pipe async du template s'y abonne.
+  protected envoi$: Observable<ResultatEnvoi> | null = null;
+
+  protected seConnecter(identifiants: Login): void {
+    this.envoi$ = this.suivreEnvoi(this.authService.connexion(identifiants));
   }
 
-  seConnecter() {
-    this.authService.connexion();
+  protected creerUnCompte(compte: Register): void {
+    this.envoi$ = this.suivreEnvoi(this.authService.creerUnCompte(compte));
   }
 
-  creerCompte() {
-    // this.authService.creerUnCOmpte()
+  private suivreEnvoi(envoi: Observable<User>): Observable<ResultatEnvoi> {
+    return envoi.pipe(
+      tap(() => this.router.navigateByUrl(PAGE_APRES_CONNEXION)),
+      map(() => ({ erreur: null })),
+      catchError((erreur: HttpErrorResponse) => of({ erreur: messageErreur(erreur) })),
+    );
   }
+}
 
-  constructor() {
-    const listcontacts = new BehaviorSubject<unknown>([]);
-    listcontacts.subscribe({
-      next: (v) => console.log(`list contacts : ${v}`),
-    });
-    const observable = new Observable((subscriber) => {
-      subscriber.next([
-        {
-          id: 1,
-          nom: 'Dupont',
-          prenom: 'Marie',
-          email: 'marie.dupont@techvision.fr',
-          telephone: '06 12 34 56 78',
-          entreprise_id: 1,
-        },
-        {
-          id: 2,
-          nom: 'Nguyen',
-          prenom: 'Thomas',
-          email: 'thomas.nguyen@techvision.fr',
-          telephone: '06 23 45 67 89',
-          entreprise_id: 1,
-        },
-        {
-          id: 3,
-          nom: 'Martin',
-          prenom: 'Sophie',
-          email: 'sophie.martin@stratconseil.fr',
-          telephone: '07 34 56 78 90',
-          entreprise_id: 2,
-        },
-        {
-          id: 4,
-          nom: 'Petit',
-          prenom: 'Lucas',
-          email: 'lucas.petit@shopnow.io',
-          telephone: '06 45 67 89 01',
-          entreprise_id: 3,
-        },
-        {
-          id: 5,
-          nom: 'Durand',
-          prenom: 'Camille',
-          email: 'camille.durand@finflow.fr',
-          telephone: '07 56 78 90 12',
-          entreprise_id: 4,
-        },
-      ]);
-    });
-
-    const sub = observable.subscribe({
-      next(data) {
-        listcontacts.next(data);
-      },
-    });
-
-    // observable.subscribe({
-    //   next(data) {
-    //     console.log('got value ' + data);
-    //   },
-    //   complete() {
-    //     console.log('done');
-    //   },
-    // });
-
-    // const subject = new Subject<number>();
-
-    // subject.subscribe({
-    //   next: (v) => console.log(`observerA: ${v}`),
-    // });
-    // subject.subscribe({
-    //   next: (v) => console.log(`observerB: ${v}`),
-    // });
-
-    // subject.next(Math.random());
-
-    // const behaviorSubject = new BehaviorSubject<number>(1);
-
-    // behaviorSubject.subscribe({
-    //   next: (v) => console.log(`observerA: ${v}`),
-    // });
-    // behaviorSubject.subscribe({
-    //   next: (v) => console.log(`observerB: ${v}`),
-    // });
-
-    // behaviorSubject.next(Math.random());
+function messageErreur(erreur: HttpErrorResponse): string {
+  if (erreur.status === 401) {
+    return 'E-mail ou mot de passe incorrect.';
   }
-  // ngOnDestroy( ){
-  //   sub.unsubscribe()
-  // }
+  if (erreur.status === 400) {
+    return erreur.error?.error ?? 'Vérifiez les informations saisies.';
+  }
+  if (erreur.status === 0) {
+    return 'Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.';
+  }
+  return 'Une erreur est survenue. Réessayez plus tard.';
 }

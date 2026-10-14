@@ -681,13 +681,17 @@ it('garde au plus deux initiales', () => {
 @Service()
 export class AuthService {
   private readonly http = inject(HttpClient);
-  private readonly apiUrl = `${environment.apiBaseUrl}`;
+  private readonly apiUrl = environment.apiBaseUrl;
 
   creerUnCompte(register: Register): Observable<User> {
-    return this.http.post<User>(`${this.apiUrl}/auth/register`, register);
+    return this.http
+      .post<User>(`${this.apiUrl}/auth/register`, register)
+      .pipe(tap((session) => this.enregistrerSession(session)));
   }
 }
 ```
+
+(Le `tap` qui enregistre la session est expliqué en 4.2.)
 
 **Tester un service HTTP** : `provideHttpClient()` + `provideHttpClientTesting()` remplacent le vrai réseau. `HttpTestingController` vérifie la requête (URL, méthode, corps) et renvoie une réponse simulée avec `flush()`. `verify()` dans `afterEach` échoue s'il reste une requête non traitée. Le premier test prouve que l'observable est froid (`src/app/Feature-auth/data-access/auth-service.spec.ts`) :
 
@@ -714,3 +718,175 @@ it('envoie les données du compte en POST sur /auth/register', () => {
 - [HttpClient : faire des requêtes](https://angular.dev/guide/http/making-requests)
 - [Tester les requêtes HTTP](https://angular.dev/guide/http/testing)
 - [RxJS : Observable](https://rxjs.dev/guide/observable)
+
+### 4.2 Garder un état partagé dans un service : `BehaviorSubject` (observable chaud)
+
+**En bref** : un `BehaviorSubject` garde une **valeur courante** et la diffuse à tous ses abonnés. C'est un observable **chaud**, à l'inverse de l'observable froid de `HttpClient`.
+
+**Explication** :
+
+| Observable froid (`HttpClient`) | Observable chaud (`BehaviorSubject`) |
+|---|---|
+| Ne fait rien sans abonné | Existe et garde sa valeur même sans abonné |
+| Chaque abonnement relance le travail (une nouvelle requête) | Tous les abonnés partagent la même valeur |
+| Un abonné tardif relance tout | Un abonné tardif reçoit tout de suite la **dernière** valeur |
+
+Pour la session de l'utilisateur (token + profil), il faut une valeur courante, que le header, le guard et l'interceptor liront plus tard : c'est un `BehaviorSubject`.
+- **Encapsulation** : le `BehaviorSubject` est **privé** (lui seul a `next()`), et on expose `session$ = this.session.asObservable()`, qu'on peut lire mais pas modifier. Le `$` final est la convention pour nommer un observable.
+- **`tap()`** exécute un effet de bord (enregistrer la session) sans modifier la valeur qui passe. Il ne s'exécute qu'en cas de succès : sur une erreur HTTP, rien n'est enregistré.
+- **Valeur initiale lue dans le `localStorage`** : la session survit à un rafraîchissement de la page. On protège le `JSON.parse` par un `try/catch`, car une valeur abîmée ne doit pas casser le démarrage.
+- **Le piège** : le `localStorage` est lisible par tout script de la page. Une faille XSS permettrait de voler le token. C'est acceptable en formation ; en production, on préfère souvent un cookie `HttpOnly`.
+
+**Dans notre appli** (`src/app/Feature-auth/data-access/auth-service.ts`) :
+
+```ts
+const CLE_SESSION = 'mini-crm.session';
+
+@Service()
+export class AuthService {
+  // Observable chaud : garde la session courante et la partage entre tous les abonnés.
+  private readonly session = new BehaviorSubject<User | null>(lireSessionStockee());
+  readonly session$ = this.session.asObservable();
+
+  connexion(identifiants: Login): Observable<User> {
+    return this.http
+      .post<User>(`${this.apiUrl}/auth/login`, identifiants)
+      .pipe(tap((session) => this.enregistrerSession(session)));
+  }
+
+  deconnexion(): void {
+    localStorage.removeItem(CLE_SESSION);
+    this.session.next(null);
+  }
+
+  private enregistrerSession(session: User): void {
+    localStorage.setItem(CLE_SESSION, JSON.stringify(session));
+    this.session.next(session);
+  }
+}
+```
+
+**Docs officielles** :
+- [RxJS : BehaviorSubject](https://rxjs.dev/api/index/class/BehaviorSubject)
+- [RxJS : tap](https://rxjs.dev/api/operators/tap)
+- [MDN : localStorage](https://developer.mozilla.org/fr/docs/Web/API/Window/localStorage)
+
+### 4.3 Consommer un observable dans une page : le pipe `async`
+
+**En bref** : le pipe `async` s'abonne à un observable depuis le template, affiche sa dernière valeur et se désabonne tout seul quand le composant est détruit ou que l'observable change.
+
+**Explication** : la page ne fait pas de `subscribe` manuel. Elle prépare un observable, `envoi$`, et le template s'y abonne avec `@let resultat = envoi$ | async;`. C'est cet abonnement qui déclenche la requête (observable froid). À chaque nouvel envoi, on affecte un **nouvel** observable à `envoi$` : le pipe `async` se désabonne de l'ancien et s'abonne au nouveau.
+
+Les opérateurs transforment la réponse en ce dont l'écran a besoin :
+- `tap` : effet de bord en cas de succès (naviguer vers `/entreprises`) ;
+- `map` : transforme la réponse en résultat d'affichage (`{ erreur: null }`) ;
+- `catchError` : intercepte l'erreur HTTP et la remplace par une valeur (`of({ erreur: message })`). L'observable ne « casse » pas, et la page affiche un message lisible au lieu de rien.
+
+Tant que l'API n'a pas répondu, `resultat` vaut `null` : `envoi$ !== null && resultat === null` dit qu'un envoi est en cours, et le bouton est désactivé. Le piège : sans `catchError`, une erreur HTTP termine l'observable en erreur, et le pipe `async` la relance dans la console.
+
+**Dans notre appli** (`src/app/Feature-auth/pages/page-auth/page-auth.ts`) :
+
+```ts
+// Observable froid : la requête part quand le pipe async du template s'y abonne.
+protected envoi$: Observable<ResultatEnvoi> | null = null;
+
+protected seConnecter(identifiants: Login): void {
+  this.envoi$ = this.suivreEnvoi(this.authService.connexion(identifiants));
+}
+
+private suivreEnvoi(envoi: Observable<User>): Observable<ResultatEnvoi> {
+  return envoi.pipe(
+    tap(() => this.router.navigateByUrl(PAGE_APRES_CONNEXION)),
+    map(() => ({ erreur: null })),
+    catchError((erreur: HttpErrorResponse) => of({ erreur: messageErreur(erreur) })),
+  );
+}
+```
+
+(`src/app/Feature-auth/pages/page-auth/page-auth.html`) :
+
+```html
+@let resultat = envoi$ | async;
+<main slotEnd class="w-100 d-flex justify-content-center">
+  <app-form-auth
+    [erreur]="resultat?.erreur ?? null"
+    [isEnvoiEnCours]="envoi$ !== null && resultat === null"
+    (connexion)="seConnecter($event)"
+    (inscription)="creerUnCompte($event)"
+  />
+</main>
+```
+
+Tester une page smart : on remplace le service par un faux (`{ provide: AuthService, useValue: fauxAuthService }`), qui renvoie `of(session)` ou `throwError(…)`. On déclenche l'output du formulaire, puis on vérifie l'appel, la navigation et le message (`page-auth.spec.ts`).
+
+**Docs officielles** :
+- [AsyncPipe](https://angular.dev/api/common/AsyncPipe)
+- [RxJS : catchError](https://rxjs.dev/api/operators/catchError)
+- [RxJS : map](https://rxjs.dev/api/operators/map)
+
+### 4.4 Formulaire réactif avec `FormBuilder`
+
+**En bref** : un formulaire réactif est décrit dans la classe (`FormGroup`, `FormControl`, validateurs) et relié au template par `[formGroup]` et `formControlName`. `FormBuilder` raccourcit son écriture.
+
+**Explication** :
+- La feature auth utilise volontairement les formulaires réactifs « classiques », qu'on trouve dans la plupart des projets existants. Les autres formulaires utiliseront les **Signal Forms**, la nouvelle API.
+- `NonNullableFormBuilder` crée des contrôles qui reviennent à `''` (et non à `null`) après un `reset()`, ce qui garde un typage strict (`string`).
+- **Validateurs** : `Validators.required`, `Validators.email`, `Validators.minLength(6)`. Un contrôle **désactivé** est ignoré par la validation et absent de `value`. On s'en sert pour ne valider le prénom et le nom qu'en mode inscription. `getRawValue()` lit tout, y compris les contrôles désactivés.
+- **Envoi** : `(ngSubmit)` sur le `<form>`. Si le formulaire est invalide, `markAllAsTouched()` affiche toutes les erreurs ; sinon, le composant dumb émet les données par un `output()`. Il n'appelle jamais le service lui-même.
+- **Accessibilité** : erreur affichée seulement quand le champ est `touched` (pas dès l'arrivée sur la page), reliée au champ par `aria-describedby` et signalée par `aria-invalid`. `novalidate` désactive les bulles natives du navigateur au profit de nos messages.
+- Astuce : `@let email = formulaire.controls.email;` dans le template évite de répéter `formulaire.controls.email` partout, et reste lisible.
+
+**Dans notre appli** (`src/app/Feature-auth/ui/form-auth/form-auth.ts`) :
+
+```ts
+// Prénom et nom ne servent qu'à l'inscription : désactivés, ils sont ignorés par la validation.
+protected readonly formulaire = this.formBuilder.group({
+  prenom: [{ value: '', disabled: true }, Validators.required],
+  nom: [{ value: '', disabled: true }, Validators.required],
+  email: ['', [Validators.required, Validators.email]],
+  password: ['', [Validators.required, Validators.minLength(LONGUEUR_MIN_MOT_DE_PASSE)]],
+});
+
+protected valider(): void {
+  if (this.formulaire.invalid) {
+    this.formulaire.markAllAsTouched();
+    return;
+  }
+  const { prenom, nom, email, password } = this.formulaire.getRawValue();
+  if (this.isConnexion()) {
+    this.connexion.emit({ email, password });
+    return;
+  }
+  this.inscription.emit({ email, password, nom, prenom });
+}
+```
+
+(`src/app/Feature-auth/ui/form-auth/form-auth.html`, extrait) :
+
+```html
+@let email = formulaire.controls.email;
+@let isEmailInvalide = email.invalid && email.touched;
+
+<form [formGroup]="formulaire" (ngSubmit)="valider()" novalidate>
+  <label for="email" class="form-label fw-semibold">Adresse e-mail</label>
+  <input
+    id="email"
+    type="email"
+    class="form-control"
+    formControlName="email"
+    autocomplete="email"
+    [class.is-invalid]="isEmailInvalide"
+    [attr.aria-invalid]="isEmailInvalide"
+    [attr.aria-describedby]="isEmailInvalide ? 'email-erreur' : null"
+  />
+  @if (isEmailInvalide) {
+    <div id="email-erreur" class="invalid-feedback">Saisissez une adresse e-mail valide.</div>
+  }
+</form>
+```
+
+**Docs officielles** :
+- [Formulaires réactifs](https://angular.dev/guide/forms/reactive-forms)
+- [Formulaires typés](https://angular.dev/guide/forms/typed-forms)
+- [Valider les saisies](https://angular.dev/guide/forms/form-validation)
+- [Bootstrap : validation des formulaires](https://getbootstrap.com/docs/5.3/forms/validation/)

@@ -1,0 +1,6 @@
+/* Bootstrap n'a pas de largeur maximale en rem : le formulaire reste lisible sur grand écran. */
+:host {
+  display: block;
+  width: 100%;
+  max-width: 28rem;
+}

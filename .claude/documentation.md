@@ -87,33 +87,62 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
 
 ### 3.1 auth
 
+> **Volontairement sans signals pour les données.** La feature auth sert d'exemple de l'écriture « classique » : `HttpClient` qui renvoie des `Observable`, `BehaviorSubject` pour l'état partagé, pipe `async` dans la page, formulaire réactif avec `FormBuilder`. Les autres formulaires utiliseront les Signal Forms. Cette feature sera basculée en signals plus tard (étape 3).
+
 #### PageAuth (`Feature-auth/pages/page-auth/page-auth.ts`)
 - **Type** : smart
-- **Rôle** : page de connexion, en deux colonnes avec `LayoutSlice`. Colonne gauche (`slotStart`) : `<app-logo>` en haut, au centre (`my-auto`) l'accroche « Mini-CRM », le titre `h1` et l'invitation à se connecter, en bas le copyright. Colonne droite (`slotEnd`) : texte provisoire « formulaire » et un bouton « connexion » provisoire qui appelle `seConnecter()`, laquelle appelle `AuthService.connexion()` (le formulaire est à venir). Uniquement des classes Bootstrap ; les gris et l'accent viennent du thème sombre de la colonne (`text-body-secondary`, `text-primary-emphasis`).
+- **Rôle** : page de connexion et d'inscription, en deux colonnes avec `LayoutSlice`.
+  - Colonne gauche (`slotStart`) : `<app-logo>` en haut, au centre (`my-auto`) l'accroche « Mini-CRM », le titre `h1` et l'invitation, en bas le copyright. Couleurs du thème sombre de la colonne (`text-body-secondary`, `text-primary-emphasis`).
+  - Colonne droite (`slotEnd`) : un `<main>` qui contient `<app-form-auth>`.
+- **Entrées** : événements `connexion` (`Login`) et `inscription` (`Register`) de `FormAuth`.
+- **Fonctionnement** : `seConnecter()` / `creerUnCompte()` affectent `envoi$` (`Observable<ResultatEnvoi>`), construit à partir de l'observable du service : `tap` (navigation vers `/entreprises` en cas de succès), `map` (`{ erreur: null }`), `catchError` (message d'erreur lisible). La requête part quand le pipe `async` du template s'abonne (`@let resultat = envoi$ | async`). Chaque nouvel envoi remplace `envoi$` : le pipe `async` se désabonne de l'ancien. Pendant l'attente (`envoi$` défini et `resultat` encore `null`), `FormAuth` reçoit `isEnvoiEnCours = true`.
+- **Messages d'erreur** : 401 → « E-mail ou mot de passe incorrect. » ; 400 → message `error` de l'API (ex. e-mail déjà utilisé) ; 0 → serveur injoignable ; autre → message générique.
+- **Sorties** : navigation vers `/entreprises` après connexion ou inscription réussie.
 - **Utilisé par** : route `connexion`.
 
 #### FormAuth (`Feature-auth/ui/form-auth/form-auth.ts`)
-- **Type** : dumb
-- **Rôle** : formulaire de connexion (à venir).
-- **Utilisé par** : personne pour l'instant.
+- **Type** : dumb (formulaire réactif : `ReactiveFormsModule` + `NonNullableFormBuilder`, outil de formulaire et non service de données)
+- **Rôle** : formulaire conforme à la maquette, en deux modes :
+  - **connexion** : e-mail, mot de passe ;
+  - **inscription** : prénom, nom, e-mail, mot de passe.
+  On change de mode avec les deux onglets (boutons `aria-pressed`) ou le lien du bas. Le mode et l'affichage du mot de passe sont un état d'affichage, en `signal()`.
+- **Formulaire** : un seul `FormGroup`. `prenom` et `nom` sont désactivés en mode connexion, donc ignorés par la validation. Validateurs : `required` partout, `email`, `minLength(6)` sur le mot de passe.
+- **Accessibilité** : `<label for>` sur chaque champ, erreurs affichées après le passage dans le champ (`touched`) ou à l'envoi (`markAllAsTouched`), reliées par `aria-describedby`, `aria-invalid`. Bouton « Afficher / Masquer le mot de passe » (`aria-pressed`, `aria-controls`). Erreur serveur en `role="alert"`, envoi en cours annoncé par `aria-live`. `autocomplete` adapté au mode.
+- **Entrées** : `erreur` (`input<string | null>`, message à afficher), `isEnvoiEnCours` (`input<boolean>` : bouton désactivé + spinner).
+- **Sorties** : `connexion` (`output<Login>`), `inscription` (`output<Register>`), émis seulement si le formulaire est valide.
+- **Style** : classes Bootstrap ; `form-auth.css` limite seulement la largeur (`:host`, `max-width: 28rem`).
+- **Utilisé par** : `PageAuth`.
 
 #### AuthService (`Feature-auth/data-access/auth-service.ts`)
-- **Type** : service (`@Service()`)
-- **Rôle** : appels HTTP d'authentification. Étape 1 de la progression : les méthodes renvoient l'`Observable` froid de `HttpClient`, sans `subscribe` dans le service. URL construite à partir de `environment.apiBaseUrl`.
-- **Méthodes** :
-  - `creerUnCompte(register: Register): Observable<User>` : `POST /auth/register` avec `{ email, password, nom, prenom }`. Renvoie `{ token, user }` (201), ou une erreur 400 si un champ manque ou si l'e-mail est déjà utilisé. La requête ne part qu'à l'abonnement.
-  - `connexion()` : vide pour l'instant.
-- **Utilisé par** : `PageAuth` (`connexion()`). `creerUnCompte()` n'est encore appelé par personne.
+- **Type** : service (`@Service()`), sans signals.
+- **Rôle** : appels HTTP d'authentification et session de l'utilisateur.
+- **Méthodes** (observables froids : la requête ne part qu'à l'abonnement) :
+  - `connexion(identifiants: Login): Observable<User>` : `POST /auth/login`.
+  - `creerUnCompte(register: Register): Observable<User>` : `POST /auth/register`.
+  - Les deux enregistrent la session reçue au passage (`tap`), seulement en cas de succès.
+  - `deconnexion(): void` : efface la session.
+- **État** : `session$` (`Observable<User | null>`), exposé par `asObservable()` d'un `BehaviorSubject` privé (observable chaud : garde la valeur courante et la partage entre abonnés). Initialisé au démarrage depuis le `localStorage` (clé `mini-crm.session`, JSON illisible ignoré). Pas encore lu par personne : servira au guard, à l'interceptor et au header.
+- **Utilisé par** : `PageAuth`.
+
+#### Login (`Feature-auth/models/login.ts`)
+- **Type** : modèle (interface)
+- **Rôle** : identifiants envoyés à `POST /auth/login` (`LoginInput` de l'API) : `email`, `password`.
+- **Utilisé par** : `AuthService.connexion()`, `FormAuth`, `PageAuth`.
 
 #### Register (`Feature-auth/models/register.ts`)
 - **Type** : modèle (interface)
 - **Rôle** : données envoyées pour créer un compte (`RegisterInput` de l'API) : `email`, `password` (6 caractères minimum), `nom`, `prenom`, tous obligatoires.
-- **Utilisé par** : `AuthService.creerUnCompte()`.
+- **Utilisé par** : `AuthService.creerUnCompte()`, `FormAuth`, `PageAuth`.
 
 #### User (`Feature-auth/models/user.ts`)
 - **Type** : modèle (interface)
-- **Rôle** : réponse de l'API après inscription ou connexion (`AuthResponse`) : `token` (JWT) et `user` (`id`, `email`, `nom`, `prenom`, `role`).
-- **Utilisé par** : `AuthService.creerUnCompte()`.
+- **Rôle** : session renvoyée par l'API après connexion ou inscription (`AuthResponse`) : `token` (JWT) et `user` (`id`, `email`, `nom`, `prenom`, `role`). C'est aussi ce qui est stocké dans le `localStorage`.
+- **Utilisé par** : `AuthService`, `PageAuth`.
+
+#### ResultatEnvoi (`Feature-auth/models/resultat-envoi.ts`)
+- **Type** : modèle (interface)
+- **Rôle** : résultat d'un envoi du formulaire vu par la page : `erreur` (`string | null`).
+- **Utilisé par** : `PageAuth`.
 
 ### 3.2 entreprises
 
@@ -255,7 +284,7 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 
 ## 6. État d'avancement
 
-**Étape de la progression des données** : 1 – HTTP avec observables froids (en cours : `AuthService.creerUnCompte()`).
+**Étape de la progression des données** : 1 – HTTP avec observables froids (en cours). La feature auth contient aussi l'exemple de l'étape 2 (`BehaviorSubject` pour la session) et restera volontairement sans signals jusqu'à la bascule.
 
 ### Fait
 
@@ -276,14 +305,15 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - `PageAuth` : colonne de présentation conforme à la maquette (`LayoutSlice` + `Logo`), avec ses tests. Le formulaire reste à faire.
 - Environnements : `environment.ts` / `environment.prod.ts` avec `apiBaseUrl`, remplacement automatique au build de production (`fileReplacements`).
 - API documentée depuis le Swagger dans `.claude/endpoints-et-donnees.md` (endpoints, modèles, erreurs).
-- `provideHttpClient()` dans `app.config.ts`, `AuthService.creerUnCompte()` (POST `/auth/register`, observable froid) et ses tests.
+- `provideHttpClient()` dans `app.config.ts`.
+- Feature auth complète, sans signals pour les données : `AuthService` (connexion, inscription, déconnexion, session en `BehaviorSubject` + `localStorage`), `FormAuth` (formulaire réactif, connexion et inscription), `PageAuth` (pipe `async`, navigation, messages d'erreur). Avec leurs tests.
 
 ### À faire
 
 - Retirer de `App` les imports inutilisés (`LayoutSlice`, `LayoutTopBottom`, `LayoutPages` : avertissements `NG8113` au build).
 - Corriger `app-shell.spec.ts` : `AppShell` ne se crée pas sans `provideRouter()` (erreur « No provider found for `ActivatedRoute` »).
-- Remplacer le texte provisoire « formulaire » de `PageAuth` par `FormAuth`.
-- Brancher `Header` sur l'utilisateur connecté et faire déconnecter réellement `logout()` (feature auth).
+- Brancher `Header` sur la session (`session$`) et faire déconnecter réellement `logout()`. Attention : `Header` est dans `shared/` et ne peut pas importer `AuthService` (feature auth). Il faudra déplacer la session dans un service de `shared/`, ou faire passer les données par `AppShell`.
+- Protéger les pages de l'application par un guard (redirection vers `/connexion` sans session), et ajouter le token aux requêtes par un interceptor.
 - Corriger `app.spec.ts` : il cherche encore le `<h1>` du template par défaut, et `App` ne se crée plus sans `provideRouter()` (le header contient des `routerLink`).
 - Aligner les dossiers sur l'architecture cible (voir l'écart en 1.1).
 - Installer et configurer Playwright (dossier `e2e/`, scripts `npm run e2e*`).

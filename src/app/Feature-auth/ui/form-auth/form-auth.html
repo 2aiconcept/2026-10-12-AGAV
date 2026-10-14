@@ -1,1 +1,166 @@
-<p>form-auth works!</p>
+@let prenom = formulaire.controls.prenom;
+@let nom = formulaire.controls.nom;
+@let email = formulaire.controls.email;
+@let password = formulaire.controls.password;
+@let isPrenomInvalide = prenom.invalid && prenom.touched;
+@let isNomInvalide = nom.invalid && nom.touched;
+@let isEmailInvalide = email.invalid && email.touched;
+@let isPasswordInvalide = password.invalid && password.touched;
+
+<div class="d-flex bg-body-secondary rounded-pill p-1 mb-4" role="group" aria-label="Type de formulaire">
+  <button
+    type="button"
+    class="btn rounded-pill flex-fill fw-semibold border-0"
+    [class.bg-body]="isConnexion()"
+    [class.shadow-sm]="isConnexion()"
+    [class.text-body-secondary]="!isConnexion()"
+    [attr.aria-pressed]="isConnexion()"
+    (click)="choisirMode('connexion')"
+  >
+    Connexion
+  </button>
+  <button
+    type="button"
+    class="btn rounded-pill flex-fill fw-semibold border-0"
+    [class.bg-body]="!isConnexion()"
+    [class.shadow-sm]="!isConnexion()"
+    [class.text-body-secondary]="isConnexion()"
+    [attr.aria-pressed]="!isConnexion()"
+    (click)="choisirMode('inscription')"
+  >
+    Créer un compte
+  </button>
+</div>
+
+<h2 class="h3 fw-bold mb-1">{{ isConnexion() ? 'Connexion' : 'Créer un compte' }}</h2>
+<p class="text-body-secondary mb-4">
+  {{ isConnexion() ? 'Saisissez vos identifiants.' : 'Renseignez vos informations.' }}
+</p>
+
+<form [formGroup]="formulaire" (ngSubmit)="valider()" novalidate>
+  @if (!isConnexion()) {
+    <div class="row g-3 mb-3">
+      <div class="col-sm-6">
+        <label for="prenom" class="form-label fw-semibold">Prénom</label>
+        <input
+          id="prenom"
+          type="text"
+          class="form-control"
+          formControlName="prenom"
+          autocomplete="given-name"
+          [class.is-invalid]="isPrenomInvalide"
+          [attr.aria-invalid]="isPrenomInvalide"
+          [attr.aria-describedby]="isPrenomInvalide ? 'prenom-erreur' : null"
+        />
+        @if (isPrenomInvalide) {
+          <div id="prenom-erreur" class="invalid-feedback">Saisissez votre prénom.</div>
+        }
+      </div>
+      <div class="col-sm-6">
+        <label for="nom" class="form-label fw-semibold">Nom</label>
+        <input
+          id="nom"
+          type="text"
+          class="form-control"
+          formControlName="nom"
+          autocomplete="family-name"
+          [class.is-invalid]="isNomInvalide"
+          [attr.aria-invalid]="isNomInvalide"
+          [attr.aria-describedby]="isNomInvalide ? 'nom-erreur' : null"
+        />
+        @if (isNomInvalide) {
+          <div id="nom-erreur" class="invalid-feedback">Saisissez votre nom.</div>
+        }
+      </div>
+    </div>
+  }
+
+  <div class="mb-3">
+    <label for="email" class="form-label fw-semibold">Adresse e-mail</label>
+    <input
+      id="email"
+      type="email"
+      class="form-control"
+      formControlName="email"
+      autocomplete="email"
+      placeholder="nom@entreprise.fr"
+      [class.is-invalid]="isEmailInvalide"
+      [attr.aria-invalid]="isEmailInvalide"
+      [attr.aria-describedby]="isEmailInvalide ? 'email-erreur' : null"
+    />
+    @if (isEmailInvalide) {
+      <div id="email-erreur" class="invalid-feedback">Saisissez une adresse e-mail valide.</div>
+    }
+  </div>
+
+  <div class="mb-4">
+    <label for="password" class="form-label fw-semibold">Mot de passe</label>
+    <div class="input-group has-validation">
+      <input
+        id="password"
+        class="form-control"
+        formControlName="password"
+        [type]="isMotDePasseVisible() ? 'text' : 'password'"
+        [attr.autocomplete]="isConnexion() ? 'current-password' : 'new-password'"
+        [class.is-invalid]="isPasswordInvalide"
+        [attr.aria-invalid]="isPasswordInvalide"
+        [attr.aria-describedby]="isPasswordInvalide ? 'password-erreur' : null"
+      />
+      <button
+        type="button"
+        class="btn btn-outline-secondary"
+        aria-controls="password"
+        [attr.aria-pressed]="isMotDePasseVisible()"
+        (click)="basculerMotDePasse()"
+      >
+        {{ isMotDePasseVisible() ? 'Masquer' : 'Afficher' }}
+        <span class="visually-hidden">le mot de passe</span>
+      </button>
+      @if (isPasswordInvalide) {
+        <div id="password-erreur" class="invalid-feedback">
+          Saisissez un mot de passe d'au moins {{ longueurMinMotDePasse }} caractères.
+        </div>
+      }
+    </div>
+  </div>
+
+  @if (erreur()) {
+    <div class="alert alert-danger" role="alert">{{ erreur() }}</div>
+  }
+
+  <button
+    type="submit"
+    class="btn btn-primary w-100 rounded-pill fw-semibold text-uppercase py-2"
+    [disabled]="isEnvoiEnCours()"
+  >
+    @if (isEnvoiEnCours()) {
+      <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+      Envoi en cours…
+    } @else {
+      {{ isConnexion() ? 'Se connecter' : 'Créer mon compte' }}
+    }
+  </button>
+  <p class="visually-hidden" aria-live="polite">{{ isEnvoiEnCours() ? 'Envoi en cours' : '' }}</p>
+</form>
+
+<p class="text-center text-body-secondary mt-3 mb-0">
+  @if (isConnexion()) {
+    Pas encore de compte ?
+    <button
+      type="button"
+      class="btn btn-link p-0 align-baseline fw-semibold"
+      (click)="choisirMode('inscription')"
+    >
+      Créer un compte
+    </button>
+  } @else {
+    Déjà un compte ?
+    <button
+      type="button"
+      class="btn btn-link p-0 align-baseline fw-semibold"
+      (click)="choisirMode('connexion')"
+    >
+      Se connecter
+    </button>
+  }
+</p>
