@@ -817,6 +817,18 @@ private suivreEnvoi(envoi: Observable<User>): Observable<ResultatEnvoi> {
 </main>
 ```
 
+**Afficher ou masquer selon un observable : `@if (… | async; as …)`.** Le header lit directement la session du service. `as session` donne un nom à la valeur reçue, réutilisable dans le bloc. Comme un `BehaviorSubject` émet tout de suite sa valeur courante, puis chaque changement, le badge et le bouton apparaissent à la connexion et disparaissent à la déconnexion, sans autre code (`src/app/shared/header/header.html`) :
+
+```html
+@if (authService.session$ | async; as session) {
+  <app-badge-utilisateur [utilisateur]="session.user" />
+
+  <app-button-small libelle="Déconnexion" couleur="light" isOutline (action)="logout()" />
+}
+```
+
+Le service est injecté en `protected` (`protected readonly authService = inject(AuthService)`) pour être lisible depuis le template sans être exposé au reste du code. Pour tester, le faux service expose un `BehaviorSubject` : `session.next(null)` dans le test simule une déconnexion.
+
 Tester une page smart : on remplace le service par un faux (`{ provide: AuthService, useValue: fauxAuthService }`), qui renvoie `of(session)` ou `throwError(…)`. On déclenche l'output du formulaire, puis on vérifie l'appel, la navigation et le message (`page-auth.spec.ts`).
 
 **Docs officielles** :

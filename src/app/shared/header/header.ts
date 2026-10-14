@@ -1,23 +1,26 @@
-import { Component, output } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Component, inject } from '@angular/core';
+import { AsyncPipe } from '@angular/common';
+import { Router, RouterLink } from '@angular/router';
+import { AuthService } from '../../Feature-auth/data-access/auth-service';
 import { BadgeUtilisateur } from '../badge-utilisateur/badge-utilisateur';
 import { ButtonSmall } from '../button-small/button-small';
-import { Utilisateur } from '../utils/models/utilisateur';
 import { Logo } from '../logo/logo';
 import { Nav } from '../nav/nav';
 
+const PAGE_APRES_DECONNEXION = '/connexion';
+
 @Component({
-  imports: [RouterLink, Logo, Nav, ButtonSmall, BadgeUtilisateur],
+  imports: [AsyncPipe, RouterLink, Logo, Nav, ButtonSmall, BadgeUtilisateur],
   selector: 'app-header',
   styleUrl: './header.css',
   templateUrl: './header.html',
 })
 export class Header {
-  // En dur tant que la feature auth ne fournit pas l'utilisateur connecté.
-  protected readonly utilisateur: Utilisateur = { prenom: 'Chris', nom: 'Martin' };
+  protected readonly authService = inject(AuthService);
+  private readonly router = inject(Router);
 
-  // readonly deconnexion = output<void>();
-  logout( ) {
-    // this.authService.logout()
+  protected logout(): void {
+    this.authService.deconnexion();
+    this.router.navigateByUrl(PAGE_APRES_DECONNEXION);
   }
 }

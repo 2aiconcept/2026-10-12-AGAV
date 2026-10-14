@@ -27,7 +27,7 @@ src/app/
 
 Un élément utilisé par une seule feature reste dans cette feature. Il passe dans `shared/` dès qu'une deuxième feature en a besoin.
 
-**Écart actuel avec cette cible** : les dossiers du code s'appellent `Feature-<feature>/` (au lieu de `<feature>/`), `pages/` (au lieu de `smart-components/`) et `ui/` (au lieu de `dump-components/`), `models/` (au lieu de `utils/models/`). `Feature-not-found/` existe en plus des quatre features. Il n'y a pas encore de dossier `layout/` : `app-shell`, `header`, `nav`, `logo`, `button-small`, `badge-utilisateur`, `pipes`, `layout-pages`, `layout-slice` et `layout-top-bottom` sont dans `shared/`.
+**Écart actuel avec cette cible** : les dossiers du code s'appellent `Feature-<feature>/` (au lieu de `<feature>/`), `pages/` (au lieu de `smart-components/`) et `ui/` (au lieu de `dump-components/`), `models/` (au lieu de `utils/models/`). `Feature-not-found/` existe en plus des quatre features. Il n'y a pas encore de dossier `layout/` : `app-shell`, `header`, `nav`, `logo`, `button-small`, `badge-utilisateur`, `pipes`, `layout-pages`, `layout-slice` et `layout-top-bottom` sont dans `shared/`. Enfin, `shared/header` importe `AuthService` de la feature auth (dépendance `shared/` → feature interdite par la règle ci-dessus, assumée provisoirement).
 
 ### 1.2 Démarrage de l'application
 
@@ -121,8 +121,8 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
   - `creerUnCompte(register: Register): Observable<User>` : `POST /auth/register`.
   - Les deux enregistrent la session reçue au passage (`tap`), seulement en cas de succès.
   - `deconnexion(): void` : efface la session.
-- **État** : `session$` (`Observable<User | null>`), exposé par `asObservable()` d'un `BehaviorSubject` privé (observable chaud : garde la valeur courante et la partage entre abonnés). Initialisé au démarrage depuis le `localStorage` (clé `mini-crm.session`, JSON illisible ignoré). Pas encore lu par personne : servira au guard, à l'interceptor et au header.
-- **Utilisé par** : `PageAuth`.
+- **État** : `session$` (`Observable<User | null>`), exposé par `asObservable()` d'un `BehaviorSubject` privé (observable chaud : garde la valeur courante et la partage entre abonnés). Initialisé au démarrage depuis le `localStorage` (clé `mini-crm.session`, JSON illisible ignoré). Lu par le header ; servira aussi au guard et à l'interceptor.
+- **Utilisé par** : `PageAuth` (`connexion`, `creerUnCompte`), `Header` (`session$`, `deconnexion`).
 
 #### Login (`Feature-auth/models/login.ts`)
 - **Type** : modèle (interface)
@@ -193,10 +193,11 @@ Routes de la feature : `Feature-contacts/contacts.routes.ts` (voir section 2).
 ## 4. Shared
 
 #### Header (`shared/header/header.ts`)
-- **Type** : dumb pour l'instant (n'injecte rien : importe la directive `RouterLink` et les composants `Logo`, `Nav`, `BadgeUtilisateur` et `ButtonSmall`)
-- **Rôle** : bandeau en haut de l'application (`<header>`, `bg-dark`). De gauche à droite : `<app-logo>` dans un lien vers `/entreprises`, le menu `<app-nav>` (qui prend la place libre avec `flex-grow-1`), `<app-badge-utilisateur>` et le bouton « Déconnexion » (`<app-button-small>`, contour `light`).
-- **Données** : l'utilisateur affiché est une constante en dur (`Chris Martin`) en attendant la feature auth.
-- **Déconnexion** : le clic appelle la méthode `logout()` du header, encore vide (l'appel au service d'authentification est en commentaire). L'output `deconnexion` a été mis en commentaire.
+- **Type** : composant qui injecte des services (`AuthService`, `Router`). Importe aussi `AsyncPipe`, la directive `RouterLink` et les composants `Logo`, `Nav`, `BadgeUtilisateur` et `ButtonSmall`.
+- **Rôle** : bandeau en haut de l'application (`<header>`, `bg-dark`). De gauche à droite : `<app-logo>` dans un lien vers `/entreprises`, le menu `<app-nav>` (qui prend la place libre avec `flex-grow-1`), puis, **seulement s'il y a une session**, `<app-badge-utilisateur>` (`session.user`) et le bouton « Déconnexion » (`<app-button-small>`, contour `light`).
+- **Données** : `@if (authService.session$ | async; as session)`. Le badge et le bouton apparaissent ou disparaissent dès que la session change (connexion, déconnexion).
+- **Déconnexion** : `logout()` appelle `AuthService.deconnexion()` puis navigue vers `/connexion`.
+- **Écart d'architecture assumé** : `Header` est dans `shared/` mais importe `AuthService` de la feature auth, et injecte un service alors qu'il est dans `shared/` (voir 1.1). C'est un choix de simplicité pour la formation, à corriger plus tard : session dans un service de `shared/`, ou données passées par `AppShell`.
 - **Style** : uniquement des classes Bootstrap, `header.css` est vide.
 - **Entrées / sorties** : aucune.
 - **Utilisé par** : `AppShell` (donc sur les pages de l'application, pas sur la connexion).
@@ -301,6 +302,7 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - `Logo` : composant dumb extrait du header, et ses tests.
 - `ButtonSmall` : bouton réutilisable (signal inputs, `output()`), utilisé pour « Déconnexion » dans le header. Avec ses tests.
 - `BadgeUtilisateur` et le pipe `initiales` : bloc utilisateur extrait du header, avec leurs tests.
+- `Header` branché sur la session : utilisateur et bouton « Déconnexion » affichés seulement s'il y a une session (`session$ | async`), déconnexion réelle. Avec ses tests.
 - Routes : `/connexion` hors coque, pages de l'application dans la coque `AppShell` (header + `<router-outlet>` enfant).
 - `PageAuth` : colonne de présentation conforme à la maquette (`LayoutSlice` + `Logo`), avec ses tests. Le formulaire reste à faire.
 - Environnements : `environment.ts` / `environment.prod.ts` avec `apiBaseUrl`, remplacement automatique au build de production (`fileReplacements`).
@@ -312,7 +314,7 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 
 - Retirer de `App` les imports inutilisés (`LayoutSlice`, `LayoutTopBottom`, `LayoutPages` : avertissements `NG8113` au build).
 - Corriger `app-shell.spec.ts` : `AppShell` ne se crée pas sans `provideRouter()` (erreur « No provider found for `ActivatedRoute` »).
-- Brancher `Header` sur la session (`session$`) et faire déconnecter réellement `logout()`. Attention : `Header` est dans `shared/` et ne peut pas importer `AuthService` (feature auth). Il faudra déplacer la session dans un service de `shared/`, ou faire passer les données par `AppShell`.
+- Supprimer l'écart d'architecture de `Header` (`shared/` qui importe `AuthService` de la feature auth) : session dans un service de `shared/`, ou données passées par `AppShell`.
 - Protéger les pages de l'application par un guard (redirection vers `/connexion` sans session), et ajouter le token aux requêtes par un interceptor.
 - Corriger `app.spec.ts` : il cherche encore le `<h1>` du template par défaut, et `App` ne se crée plus sans `provideRouter()` (le header contient des `routerLink`).
 - Aligner les dossiers sur l'architecture cible (voir l'écart en 1.1).
