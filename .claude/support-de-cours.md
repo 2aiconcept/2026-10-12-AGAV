@@ -1023,3 +1023,71 @@ it("n'envoie jamais le token vers un autre domaine", () => {
 - [Interceptors](https://angular.dev/guide/http/interceptors)
 - [Tester les requêtes HTTP](https://angular.dev/guide/http/testing)
 - [MDN : header Authorization](https://developer.mozilla.org/fr/docs/Web/HTTP/Reference/Headers/Authorization)
+
+### 4.7 Traiter les erreurs HTTP en un seul endroit : un interceptor d'erreurs
+
+**En bref** : un interceptor peut aussi regarder passer la **réponse**, avec `next(req).pipe(tap(…))`. Le callback `error` de `tap` permet de réagir à certains codes d'erreur, une seule fois pour toute l'application.
+
+**Explication** :
+- On part de l'exemple `loggingInterceptor` de la doc officielle (section « Intercepting response events ») : une `function` qui reçoit `req` et `next`, et renvoie `next(req).pipe(tap(…))`.
+- `tap` accepte un objet `{ next, error }`. Le callback `error` est appelé quand la requête échoue : on y teste le code avec de simples `if`.
+- `tap` **ne fait que regarder** : l'erreur continue son chemin jusqu'à la page, qui affiche son propre message. Pas besoin de `catchError` ni de `throwError`.
+- **401** : le token est absent ou expiré, donc on déconnecte et on renvoie vers `/connexion`. **Piège** : sur `/auth/login`, un 401 veut dire « mauvais mot de passe », d'où le `!req.url.includes('/auth/')`.
+- **500** : erreur côté serveur, confiée à l'`ErrorHandler` d'Angular avec `errorHandler.handleError(erreur)`. C'est le gestionnaire d'erreurs global de l'application (par défaut, il affiche l'erreur dans la console). En le remplaçant par notre propre classe, on pourra envoyer toutes les erreurs vers un outil de suivi, sans toucher à l'interceptor. Bonne pratique : ne pas éparpiller des `console.error` dans le code.
+- **`inject()`** se fait au début de la fonction : le callback `error` s'exécute plus tard, quand la réponse arrive, en dehors du contexte d'injection.
+- **Ordre** : `withInterceptors([jwtInterceptor, errorsInterceptor])`. La requête traverse les interceptors dans l'ordre du tableau, et la réponse revient dans l'ordre inverse.
+
+Exemple de la doc, point de départ :
+
+```ts
+export function loggingInterceptor(
+  req: HttpRequest<unknown>,
+  next: HttpHandlerFn,
+): Observable<HttpEvent<unknown>> {
+  return next(req).pipe(
+    tap((event) => {
+      if (event.type === HttpEventType.Response) {
+        console.log(req.url, 'returned a response with status', event.status);
+      }
+    }),
+  );
+}
+```
+
+**Dans notre appli** (`src/app/shared/errors-interceptor.ts`) :
+
+```ts
+export function errorsInterceptor(
+  req: HttpRequest<unknown>,
+  next: HttpHandlerFn,
+): Observable<HttpEvent<unknown>> {
+  const authService = inject(AuthService);
+  const router = inject(Router);
+  const errorHandler = inject(ErrorHandler);
+
+  return next(req).pipe(
+    tap({
+      error: (erreur: HttpErrorResponse) => {
+        // 401 : token absent ou expiré (sauf sur /auth/login, où c'est un mauvais mot de passe).
+        if (erreur.status === 401 && !req.url.includes('/auth/')) {
+          authService.deconnexion();
+          router.navigateByUrl('/connexion');
+        }
+
+        // 500 : erreur côté serveur, confiée au gestionnaire d'erreurs global d'Angular.
+        if (erreur.status === 500) {
+          errorHandler.handleError(erreur);
+        }
+      },
+    }),
+  );
+}
+```
+
+**Tester** : on simule une réponse en erreur avec `flush(corps, { status: 401, statusText: '…' })`, on vérifie avec un faux `AuthService` que `deconnexion()` est appelée, et avec un faux `ErrorHandler` (`{ provide: ErrorHandler, useValue: { handleError: vi.fn() } }`) que le 500 lui est confié (`src/app/shared/errors-interceptor.spec.ts`).
+
+**Docs officielles** :
+- [Interceptors : Intercepting response events (exemple `next(req).pipe(tap(…))`)](https://angular.dev/guide/http/interceptors#intercepting-response-events)
+- [Interceptors : Dependency injection in interceptors](https://angular.dev/guide/http/interceptors#dependency-injection-in-interceptors)
+- [RxJS : tap (callbacks `next` et `error`)](https://rxjs.dev/api/operators/tap)
+- [ErrorHandler](https://angular.dev/api/core/ErrorHandler)
