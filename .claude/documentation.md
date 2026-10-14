@@ -52,6 +52,7 @@ Deux familles de pages :
 | `''` (enfant)         | —                    | —              | —     | Redirige vers `entreprises`          |
 | `entreprises`         | `PageEntreprises`    | entreprises    | —     | Liste des entreprises                |
 | `entreprises/ajouter` | `PageAjouterEntreprise` | entreprises | —     | Création d'une entreprise            |
+| `entreprises/:id/modifier` | `PageModifierEntreprise` | entreprises | — | Modification d'une entreprise   |
 | `contacts`            | `PageContacts`       | contacts       | —     | Liste des contacts (`contacts.routes.ts`) |
 | `contacts/ajouter`    | `PageAjouterContact` | contacts       | —     | Création d'un contact                |
 | `contacts/editer/:id` | `PageEditerContact`  | contacts       | —     | Modification d'un contact            |
@@ -152,6 +153,8 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
 
 ### 3.2 entreprises
 
+> **Feature complète et commentée ligne par ligne** : tous les fichiers TypeScript et HTML de la feature (hors tests) portent des commentaires explicatifs pour les apprenants. C'est une exception volontaire à la règle « commenter seulement le pourquoi ».
+
 > **Étape 3, API seule source de vérité** : l'application est multi-utilisateur, donc aucune donnée n'est gardée en local. La **liste** est lue avec `httpResource()` (signals `value()`, `isLoading()`, `error()`, `hasValue()`, `reload()`). Les **écritures** (`creer`, `modifier`, `supprimer`) et `trouver` passent par `HttpClient` + `firstValueFrom` (des `Promise`, avec `async/await`). Après chaque écriture, la page relit la liste sur l'API avec `reload()` : on ne met jamais à jour une liste à la main. Les versions `Observable` d'origine sont gardées en commentaire dans le service.
 
 #### PageEntreprises (`Feature-entreprises/pages/page-entreprises/page-entreprises.ts`)
@@ -159,10 +162,10 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
 - **Rôle** : liste des entreprises dans `LayoutPages`. En-tête (`pageHeader`, `d-flex justify-content-between`) : « Portefeuille commercial » et le titre `h1` « Entreprises » à gauche, à droite le lien-bouton « + Ajouter une entreprise » (`<a routerLink="/entreprises/ajouter">`, `btn btn-primary rounded-pill`). Il mène à `PageAjouterEntreprise`. Contenu : tableau Bootstrap (`table table-hover`, `<caption>` masquée pour les lecteurs d'écran, `<th scope="col">`) avec nom + adresse, secteur, téléphone et une colonne **Actions**. Pied (`pageFooter`) : nombre d'entreprises affichées.
 - **Données** : `entreprises = entreprisesService.lister()`, une ressource HTTP créée à l'initialisation de la page (contexte d'injection) : la requête part tout de suite, sans abonnement. Le template lit ses signals, dans cet ordre : `error()` → alerte « Impossible de charger les entreprises. » (`role="alert"`) ; `hasValue()` → tableau avec `value()` ; sinon « Chargement des entreprises… » (`aria-live`). Liste vide : « Aucune entreprise. » (`@empty`). On ne lit jamais `value()` sans avoir testé `hasValue()` (lire `value()` en erreur lève une exception).
 - **Actions par ligne** :
-  - **Modifier** : lien `<a routerLink>` vers `/entreprises/{id}/modifier` (route et page pas encore créées : mène pour l'instant à la page introuvable).
+  - **Modifier** : lien `<a routerLink>` vers `/entreprises/{id}/modifier` (`PageModifierEntreprise`).
   - **Supprimer** : bouton qui demande une confirmation (`confirm()`), attend `EntreprisesService.supprimer(id)` (`await`), puis relit la liste sur l'API avec `entreprises.reload()`. Pendant le rechargement, l'ancienne liste reste affichée (`hasValue()` reste vrai). Si la suppression échoue, la promesse est rejetée : pas de rechargement, et l'erreur part au gestionnaire d'erreurs global (un 401 est traité par `errorsInterceptor`).
   - Le nom de l'entreprise est ajouté en texte masqué (`visually-hidden`) dans chaque lien et bouton : « Modifier TechVision », « Supprimer TechVision ».
-- **Pas encore** : page de modification, recherche.
+- **Pas encore** : recherche.
 - **Utilisé par** : route `entreprises`.
 
 #### PageAjouterEntreprise (`Feature-entreprises/pages/page-ajouter-entreprise/page-ajouter-entreprise.ts`)
@@ -170,6 +173,16 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
 - **Rôle** : création d'une entreprise. Carte Bootstrap avec le titre `h1` « Ajouter une entreprise », le formulaire `<app-form-entreprise libelleValider="Ajouter">` et un lien « Retour à la liste des entreprises ».
 - **Fonctionnement** : à l'événement `valider`, `ajouter()` attend `EntreprisesService.creer()`, puis navigue vers `/entreprises`. La page liste crée une nouvelle ressource, donc relit l'API : la nouvelle entreprise apparaît, sans état local. En cas d'échec, signal `hasError` → alerte `role="alert"`, et on reste sur la page.
 - **Utilisé par** : route `entreprises/ajouter`.
+
+#### PageModifierEntreprise (`Feature-entreprises/pages/page-modifier-entreprise/page-modifier-entreprise.ts`)
+- **Type** : smart
+- **Rôle** : modification d'une entreprise. Même carte que la page d'ajout, titre `h1` « Modifier une entreprise », lien « Retour à la liste des entreprises ».
+- **Entrées** : paramètre de route `:id`, lu une fois avec `inject(ActivatedRoute).snapshot.paramMap.get('id')` et converti en nombre.
+- **Fonctionnement** :
+  - au démarrage (constructeur), `charger()` attend `EntreprisesService.trouver(id)` et range la réponse de l'API dans le signal `entreprise` ;
+  - le template affiche dans l'ordre : l'erreur de chargement (`hasErrorChargement`, `role="alert"`), le formulaire prérempli `<app-form-entreprise [entreprise]="…" libelleValider="Enregistrer">` (`@else if (entreprise(); as entrepriseChargee)`), ou « Chargement de l'entreprise… » (`aria-live`) ;
+  - à l'événement `valider`, `enregistrer()` attend `modifier(id, …)` puis navigue vers `/entreprises` (la liste relit l'API) ; en cas d'échec, `hasErrorEnregistrement` → alerte, et on reste sur la page.
+- **Utilisé par** : route `entreprises/:id/modifier`.
 
 #### FormEntreprise (`Feature-entreprises/ui/form-entreprise/form-entreprise.ts`)
 - **Type** : dumb, formulaire en **Signal Forms** (`form()`, directive `FormField`, `submit()`).
@@ -184,7 +197,7 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
   Chaque règle porte son message en français.
 - **Affichage des erreurs** : un champ est en erreur quand il est touché (`touched()`) et invalide (`invalid()`). On affiche alors `is-invalid`, `aria-invalid="true"` et la liste de ses `errors()` (`error.message`) dans un `invalid-feedback`, relié au champ par `aria-describedby`. Le nom porte un astérisque décoratif (`aria-hidden`), expliqué en haut du formulaire, et `aria-required="true"`.
 - **Sorties** : `valider` (`output<EntrepriseInput>()`). À la soumission (`(submit)` + `preventDefault()`), `submit(formulaire, action)` marque les champs comme touchés (toutes les erreurs s'affichent) et n'exécute l'action, qui émet `modele()`, que si toutes les règles sont respectées.
-- **Utilisé par** : `PageAjouterEntreprise`.
+- **Utilisé par** : `PageAjouterEntreprise`, `PageModifierEntreprise`.
 
 #### EntreprisesService (`Feature-entreprises/data-access/entreprises-service.ts`)
 - **Type** : service (`@Service()`).
@@ -196,7 +209,7 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
   - `modifier(id, entreprise: EntrepriseInput): Promise<Entreprise>` : `PUT /entreprises/{id}` (mise à jour partielle côté API), renvoie l'entreprise modifiée.
   - `supprimer(id): Promise<void>` : `DELETE /entreprises/{id}`.
   - En cas d'erreur HTTP, la promesse est rejetée avec la `HttpErrorResponse`.
-- **Utilisé par** : `PageEntreprises` (`lister`, `supprimer`), `PageAjouterEntreprise` (`creer`). `trouver` et `modifier` ne sont pas encore appelées.
+- **Utilisé par** : `PageEntreprises` (`lister`, `supprimer`), `PageAjouterEntreprise` (`creer`), `PageModifierEntreprise` (`trouver`, `modifier`).
 
 #### Entreprise (`Feature-entreprises/models/entreprise.ts`)
 - **Type** : modèle (interface)
@@ -385,7 +398,7 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - `jwtInterceptor` : token JWT ajouté aux requêtes vers l'API (`Authorization: Bearer`), enregistré avec `withInterceptors`. Avec ses tests.
 - `EntreprisesService` (CRUD, observables froids) et `PageEntreprises` (liste dans `LayoutPages` avec `httpResource()` : chargement, erreur, liste vide, lien « Ajouter une entreprise », colonne Actions : lien Modifier, suppression avec confirmation et rechargement). Avec leurs tests.
 - `authGuard` sur la coque `AppShell` : pages de l'application réservées aux utilisateurs connectés.
-- Entreprises : page d'ajout (`PageAjouterEntreprise`) et formulaire partagé `FormEntreprise` en Signal Forms (validation du nom et du téléphone, erreurs accessibles), avec leurs tests.
+- Entreprises : feature complète (liste, ajout, modification, suppression), commentée ligne par ligne. Page de modification `PageModifierEntreprise` (route `/entreprises/:id/modifier`). Page d'ajout (`PageAjouterEntreprise`) et formulaire partagé `FormEntreprise` en Signal Forms (validation du nom et du téléphone, erreurs accessibles), avec leurs tests.
 - `errorsInterceptor` : sur le modèle de la doc (`tap`), 401 hors `/auth/` → déconnexion et `/connexion`, 500 → `ErrorHandler`. Avec ses tests.
 - Feature auth complète, requêtes en observables : `AuthService` (connexion, inscription, déconnexion, session en `signal()` + `localStorage`, d'abord écrite avec un `BehaviorSubject`), `FormAuth` (formulaire réactif, connexion et inscription), `PageAuth` (pipe `async`, navigation, messages d'erreur). Avec leurs tests.
 
@@ -397,6 +410,5 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - Corriger `app.spec.ts` : il cherche encore le `<h1>` du template par défaut, et `App` ne se crée plus sans `provideRouter()` (le header contient des `routerLink`).
 - Aligner les dossiers sur l'architecture cible (voir l'écart en 1.1).
 - Installer et configurer Playwright (dossier `e2e/`, scripts `npm run e2e*`).
-- Entreprises : route et page `/entreprises/{id}/modifier` (cible du lien « Modifier »), qui réutilisera `FormEntreprise`.
 - Budget du bundle initial dépassé au build (518 kB pour 500 kB, dont 231 kB de CSS Bootstrap ; 103 kB transférés) : à examiner.
 - Features : `auth`, `entreprises`, `contacts`, `opportunites`.

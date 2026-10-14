@@ -1,20 +1,31 @@
+<!-- container : largeur centrée (Bootstrap) ; py-4 : marges intérieures en haut et en bas. -->
 <div class="container py-4">
+  <!-- Carte Bootstrap avec une ombre légère, centrée (mx-auto) et de largeur limitée. -->
   <div class="card shadow-sm mx-auto" style="max-width: 40rem">
+    <!-- En-tête de la carte : sur-titre et titre de la page. -->
     <div class="card-header bg-body p-4">
       <p class="text-secondary mb-1">Portefeuille commercial</p>
+      <!-- Un seul h1 par page : le titre principal. -->
       <h1 class="h2 fw-bold mb-0">Ajouter une entreprise</h1>
     </div>
 
+    <!-- Corps de la carte : message d'erreur éventuel et formulaire. -->
     <div class="card-body p-4">
+      <!-- hasError() : on lit le signal en l'appelant comme une fonction. -->
       @if (hasError()) {
+        <!-- role="alert" : le message est annoncé tout de suite par les lecteurs d'écran. -->
         <div class="alert alert-danger" role="alert">
           L'entreprise n'a pas pu être ajoutée. Réessayez plus tard.
         </div>
       }
 
+      <!-- Le formulaire partagé, sans entreprise en entrée : il démarre vide. -->
+      <!-- libelleValider="Ajouter" : texte du bouton (input sans crochets = chaîne fixe). -->
+      <!-- (valider) : quand le formulaire est valide, il émet les données ; $event les contient. -->
       <app-form-entreprise libelleValider="Ajouter" (valider)="ajouter($event)" />
     </div>
 
+    <!-- Pied de la carte : lien de retour à la liste (une navigation, donc un lien). -->
     <div class="card-footer bg-body px-4 py-3">
       <a routerLink="/entreprises" class="link-secondary">Retour à la liste des entreprises</a>
     </div>

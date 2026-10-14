@@ -1,26 +1,43 @@
+<!-- LayoutPages fournit le cadre (carte Bootstrap) ; on place notre contenu dans ses zones. -->
 <app-layout-pages>
+  <!-- ===================== En-tête (zone pageHeader) ===================== -->
+  <!-- L'attribut pageHeader envoie ce bloc dans la zone « en-tête » du layout (ng-content). -->
+  <!-- d-flex justify-content-between : titre à gauche, bouton à droite. -->
+  <!-- flex-wrap gap-3 : sur petit écran, le bouton passe sous le titre, avec un espace. -->
   <div pageHeader class="d-flex flex-wrap justify-content-between align-items-center gap-3">
     <div>
+      <!-- Sur-titre gris (text-secondary). -->
       <p class="text-secondary mb-1">Portefeuille commercial</p>
+      <!-- Titre principal de la page : un seul h1 par page (style h2 pour la taille). -->
       <h1 class="h2 fw-bold mb-0">Entreprises</h1>
     </div>
+    <!-- Lien (et non bouton) : il mène à une autre page. Style de bouton principal. -->
     <a
       class="btn btn-primary rounded-pill fw-semibold text-uppercase px-4"
       routerLink="/entreprises/ajouter"
     >
+      <!-- Le « + » est décoratif : aria-hidden évite qu'il soit lu. -->
       <span aria-hidden="true">+</span> Ajouter une entreprise
     </a>
   </div>
 
+  <!-- ===================== Contenu (zone par défaut du layout) ===================== -->
+  <!-- 1er cas : la requête a échoué. On teste error() AVANT de lire value(), -->
+  <!-- car lire value() d'une ressource en erreur provoque une exception. -->
   @if (entreprises.error()) {
+    <!-- role="alert" : le message est annoncé tout de suite par les lecteurs d'écran. -->
     <div class="alert alert-danger m-3" role="alert">
       Impossible de charger les entreprises. Réessayez plus tard.
     </div>
+    <!-- 2e cas : les données sont arrivées (hasValue() vrai). -->
   } @else if (entreprises.hasValue()) {
+    <!-- table-hover : survol des lignes ; align-middle : contenu centré verticalement. -->
     <table class="table table-hover align-middle mb-0">
+      <!-- Titre du tableau, masqué à l'écran mais lu par les lecteurs d'écran. -->
       <caption class="visually-hidden">Liste des entreprises</caption>
       <thead>
         <tr>
+          <!-- scope="col" : chaque en-tête décrit sa colonne (accessibilité). -->
           <th scope="col" class="text-uppercase small text-secondary">Entreprise</th>
           <th scope="col" class="text-uppercase small text-secondary">Secteur</th>
           <th scope="col" class="text-uppercase small text-secondary">Téléphone</th>
@@ -28,22 +45,33 @@
         </tr>
       </thead>
       <tbody>
+        <!-- Une ligne par entreprise renvoyée par l'API (value()). -->
+        <!-- track entreprise.id : Angular reconnaît chaque ligne par son id et ne recrée que -->
+        <!-- les lignes qui changent quand la liste est rechargée. -->
         @for (entreprise of entreprises.value(); track entreprise.id) {
           <tr>
             <td>
+              <!-- {{ … }} : interpolation, affiche la valeur dans le HTML. -->
               <div class="fw-semibold">{{ entreprise.nom }}</div>
               <div class="small text-secondary">{{ entreprise.adresse }}</div>
             </td>
             <td>{{ entreprise.secteur }}</td>
             <td>{{ entreprise.telephone }}</td>
+            <!-- text-nowrap : les deux boutons restent sur la même ligne. -->
             <td class="text-end text-nowrap">
+              <!-- « Modifier » est une navigation : lien vers /entreprises/{id}/modifier. -->
+              <!-- [routerLink] avec un tableau : Angular assemble l'URL à partir des morceaux. -->
               <a
                 class="btn btn-sm btn-outline-secondary rounded-pill fw-semibold me-2"
                 [routerLink]="['/entreprises', entreprise.id, 'modifier']"
               >
                 <span aria-hidden="true">✎</span> Modifier
+                <!-- Texte masqué : le lecteur d'écran entend « Modifier TechVision ». -->
                 <span class="visually-hidden">{{ entreprise.nom }}</span>
               </a>
+              <!-- « Supprimer » est une action : un vrai <button>. -->
+              <!-- type="button" : ce bouton n'envoie aucun formulaire. -->
+              <!-- (click) : appelle la méthode supprimer() de la classe avec l'entreprise de la ligne. -->
               <button
                 type="button"
                 class="btn btn-sm btn-outline-danger rounded-pill fw-semibold"
@@ -53,20 +81,27 @@
               </button>
             </td>
           </tr>
+          <!-- @empty : affiché si la liste reçue est vide. -->
         } @empty {
           <tr>
+            <!-- colspan="4" : la cellule occupe les 4 colonnes du tableau. -->
             <td colspan="4" class="text-center text-secondary py-4">Aucune entreprise.</td>
           </tr>
         }
       </tbody>
     </table>
+    <!-- 3e cas : ni erreur ni données, la requête est en cours. -->
   } @else {
+    <!-- aria-live="polite" : le message est annoncé sans interrompre l'utilisateur. -->
     <p class="text-secondary text-center py-4 mb-0" aria-live="polite">
       Chargement des entreprises…
     </p>
   }
 
+  <!-- ===================== Pied (zone pageFooter) ===================== -->
+  <!-- aria-live : le nouveau nombre est annoncé quand la liste change. -->
   <p pageFooter class="small text-secondary mb-0" aria-live="polite">
+    <!-- On ne lit value() que si hasValue() est vrai ; sinon on affiche 0. -->
     {{ entreprises.hasValue() ? entreprises.value().length : 0 }} entreprise(s) affichée(s)
   </p>
 </app-layout-pages>

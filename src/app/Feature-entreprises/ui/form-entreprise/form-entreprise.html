@@ -1,17 +1,29 @@
+<!-- @let crée une variable locale au template, pour ne pas répéter une expression. -->
+<!-- formulaire.nom() donne l'état du champ « nom » : valeur, touched(), invalid(), errors()… -->
 @let nom = formulaire.nom();
 @let secteur = formulaire.secteur();
 @let telephone = formulaire.telephone();
+<!-- Un champ s'affiche en erreur seulement s'il a été touché (quitté par l'utilisateur, -->
+<!-- ou formulaire envoyé) ET s'il ne respecte pas une règle : pas d'erreur dès l'arrivée. -->
 @let isNomInvalide = nom.touched() && nom.invalid();
 @let isSecteurInvalide = secteur.touched() && secteur.invalid();
 @let isTelephoneInvalide = telephone.touched() && telephone.invalid();
 
+<!-- novalidate : désactive les bulles d'erreur du navigateur, on affiche nos propres messages. -->
+<!-- (submit) : appelé au clic sur le bouton « submit » ou à la touche Entrée dans un champ. -->
 <form novalidate (submit)="soumettre($event)">
+  <!-- L'astérisque est décoratif : on explique sa signification en toutes lettres. -->
   <p class="small text-secondary">
     Les champs marqués d'un <span aria-hidden="true">*</span> sont obligatoires.
   </p>
 
+  <!-- ===================== Champ « Nom » (obligatoire) ===================== -->
+  <!-- mb-3 : marge en bas (Bootstrap). -->
   <div class="mb-3">
+    <!-- for="…" relie le libellé au champ : cliquer dessus place le curseur dans le champ, -->
+    <!-- et le lecteur d'écran annonce « Nom » en arrivant sur le champ. -->
     <label for="entreprise-nom" class="form-label fw-semibold">
+      <!-- aria-hidden : l'astérisque n'est pas lu (c'est aria-required qui informe). -->
       Nom <span class="text-danger" aria-hidden="true">*</span>
     </label>
     <input
@@ -25,17 +37,32 @@
       [attr.aria-invalid]="isNomInvalide"
       [attr.aria-describedby]="isNomInvalide ? 'entreprise-nom-erreur' : null"
     />
+    <!-- Ci-dessus : -->
+    <!-- - id : identifiant unique, cible du for du label ; -->
+    <!-- - class="form-control" : style Bootstrap d'un champ ; -->
+    <!-- - autocomplete : aide le navigateur à proposer une valeur (nom d'organisation) ; -->
+    <!-- - aria-required : annonce « obligatoire » aux lecteurs d'écran ; -->
+    <!-- - [formField] : relie le champ au modèle, dans les deux sens ; -->
+    <!-- - [class.is-invalid] : bordure rouge Bootstrap quand le champ est en erreur ; -->
+    <!-- - [attr.aria-invalid] : annonce « invalide » aux lecteurs d'écran ; -->
+    <!-- - [attr.aria-describedby] : relie le champ au message d'erreur (lu à la suite). -->
     @if (isNomInvalide) {
+      <!-- invalid-feedback : texte d'erreur rouge sous le champ (Bootstrap). -->
       <div id="entreprise-nom-erreur" class="invalid-feedback">
+        <!-- errors() : liste des règles non respectées ; chacune a un kind et un message. -->
+        <!-- track erreur.kind : identifiant de chaque erreur pour la boucle @for. -->
         @for (erreur of nom.errors(); track erreur.kind) {
+          <!-- Le message déclaré dans le schéma de validation (form-entreprise.ts). -->
           <div>{{ erreur.message }}</div>
         }
       </div>
     }
   </div>
 
+  <!-- ===================== Champ « Secteur » (facultatif) ===================== -->
   <div class="mb-3">
     <label for="entreprise-secteur" class="form-label fw-semibold">Secteur</label>
+    <!-- Même principe que le nom, sans aria-required (champ facultatif). -->
     <input
       id="entreprise-secteur"
       type="text"
@@ -54,8 +81,10 @@
     }
   </div>
 
+  <!-- ===================== Champ « Adresse » (facultatif, sans règle) ===================== -->
   <div class="mb-3">
     <label for="entreprise-adresse" class="form-label fw-semibold">Adresse</label>
+    <!-- autocomplete="street-address" : le navigateur peut proposer une adresse connue. -->
     <input
       id="entreprise-adresse"
       type="text"
@@ -65,8 +94,11 @@
     />
   </div>
 
+  <!-- ===================== Champ « Téléphone » (facultatif, format vérifié) ===================== -->
+  <!-- mb-4 : marge un peu plus grande avant le bouton. -->
   <div class="mb-4">
     <label for="entreprise-telephone" class="form-label fw-semibold">Téléphone</label>
+    <!-- type="tel" : clavier numérique sur mobile ; autocomplete="tel" : numéro proposé. -->
     <input
       id="entreprise-telephone"
       type="tel"
@@ -86,7 +118,10 @@
     }
   </div>
 
+  <!-- type="submit" : ce bouton envoie le formulaire, ce qui déclenche (submit) sur <form>. -->
+  <!-- Classes Bootstrap : bouton principal (btn-primary), en pilule (rounded-pill). -->
   <button type="submit" class="btn btn-primary rounded-pill fw-semibold px-4">
+    <!-- Texte reçu en input : « Ajouter » ou « Enregistrer ». -->
     {{ libelleValider() }}
   </button>
 </form>

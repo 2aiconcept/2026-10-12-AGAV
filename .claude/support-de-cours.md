@@ -1622,3 +1622,64 @@ protected soumettre(event: Event): void {
 - [Signal Forms : soumission (`submit`)](https://angular.dev/guide/forms/signals/form-submission)
 - [Bootstrap : validation des formulaires](https://getbootstrap.com/docs/5.3/forms/validation/)
 - [WAI : identifier les erreurs de saisie](https://www.w3.org/WAI/WCAG22/Understanding/error-identification.html)
+
+### 5.3 Modifier une entreprise : lire l'id dans l'URL, charger, préremplir le formulaire
+
+**En bref** : la page de modification lit l'`id` dans l'URL, charge l'entreprise sur l'API, puis la passe au **même** formulaire que l'ajout, qui se préremplit grâce à `linkedSignal`.
+
+**Explication** :
+- **Paramètre de route** : la route `entreprises/:id/modifier` déclare un paramètre `:id`. Dans la page, `inject(ActivatedRoute).snapshot.paramMap.get('id')` lit sa valeur au moment de l'arrivée sur la page. Un paramètre d'URL est toujours une **chaîne** : on le convertit avec `Number()`.
+- **`snapshot` suffit ici** : on ne reste pas sur la page en changeant d'`id` (on revient à la liste après l'enregistrement). Si la même page devait afficher plusieurs `id` à la suite, il faudrait suivre le paramètre au fil du temps.
+- **Charger au démarrage** : le constructeur appelle `charger()`, une méthode `async` qui attend `trouver(id)` et range la réponse de l'API dans un signal. Ce signal ne contient qu'une réponse de l'API, jamais une copie qu'on modifierait à la main.
+- **`@if (entreprise(); as entrepriseChargee)`** : on n'affiche le formulaire qu'une fois l'entreprise arrivée. `as` donne un nom à la valeur, et TypeScript sait qu'elle n'est plus `undefined` dans le bloc. Avant cela, on affiche « Chargement… », et en cas d'échec un message `role="alert"`.
+- **Un formulaire, deux pages** : le formulaire est le même que pour l'ajout. Seuls changent l'`input` `entreprise` (absent pour l'ajout, prérempli ici) et le libellé du bouton. Son `linkedSignal` recalcule le modèle quand l'entreprise arrive.
+- **Après l'enregistrement** : `await modifier(id, …)`, puis retour à la liste, qui relit l'API (nouvelle ressource).
+- **Tester** : on simule la route active (`{ provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: '3' }) } } }`) et le service (`trouver`, `modifier` en `vi.fn()`, qui renvoient des promesses). Une promesse qui ne se résout jamais (`new Promise(() => undefined)`) simule un chargement en cours.
+- **Commentaires ligne par ligne** : toute la feature entreprises est commentée en détail, pour servir de référence de lecture. Dans un vrai projet, on ne commente que le « pourquoi » non évident.
+
+**Dans notre appli** (`src/app/Feature-entreprises/pages/page-modifier-entreprise/page-modifier-entreprise.ts`, extrait) :
+
+```ts
+// L'id de l'entreprise, lu une fois dans l'URL. snapshot = l'état de la route à l'arrivée ;
+// paramMap.get('id') renvoie une chaîne, Number() la convertit en nombre.
+private readonly id = Number(inject(ActivatedRoute).snapshot.paramMap.get('id'));
+
+// L'entreprise telle que l'API l'a renvoyée (undefined tant qu'elle n'est pas chargée).
+protected readonly entreprise = signal<Entreprise | undefined>(undefined);
+
+constructor() {
+  this.charger();
+}
+
+private async charger(): Promise<void> {
+  try {
+    this.entreprise.set(await this.entreprisesService.trouver(this.id));
+  } catch {
+    this.hasErrorChargement.set(true);
+  }
+}
+```
+
+(`page-modifier-entreprise.html`, extrait) :
+
+```html
+@if (hasErrorChargement()) {
+  <div class="alert alert-danger mb-0" role="alert">
+    Impossible de charger cette entreprise. Elle a peut-être été supprimée.
+  </div>
+} @else if (entreprise(); as entrepriseChargee) {
+  <app-form-entreprise
+    libelleValider="Enregistrer"
+    [entreprise]="entrepriseChargee"
+    (valider)="enregistrer($event)"
+  />
+} @else {
+  <p class="text-secondary mb-0" aria-live="polite">Chargement de l'entreprise…</p>
+}
+```
+
+**Docs officielles** :
+- [Lire les paramètres de route](https://angular.dev/guide/routing/read-route-state)
+- [ActivatedRoute](https://angular.dev/api/router/ActivatedRoute)
+- [Contrôle de flux : `@if` avec `as`](https://angular.dev/guide/templates/control-flow)
+- [linkedSignal](https://angular.dev/guide/signals/linked-signal)

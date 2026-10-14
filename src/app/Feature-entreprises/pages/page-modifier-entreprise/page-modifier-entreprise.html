@@ -1,0 +1,45 @@
+<!-- Même mise en page que la page d'ajout : une carte Bootstrap centrée. -->
+<div class="container py-4">
+  <div class="card shadow-sm mx-auto" style="max-width: 40rem">
+    <!-- En-tête de la carte : sur-titre et titre de la page. -->
+    <div class="card-header bg-body p-4">
+      <p class="text-secondary mb-1">Portefeuille commercial</p>
+      <!-- Un seul h1 par page : le titre principal. -->
+      <h1 class="h2 fw-bold mb-0">Modifier une entreprise</h1>
+    </div>
+
+    <div class="card-body p-4">
+      <!-- 1er cas : le chargement a échoué, on ne peut pas afficher le formulaire. -->
+      @if (hasErrorChargement()) {
+        <!-- role="alert" : le message est annoncé tout de suite par les lecteurs d'écran. -->
+        <div class="alert alert-danger mb-0" role="alert">
+          Impossible de charger cette entreprise. Elle a peut-être été supprimée.
+        </div>
+        <!-- 2e cas : l'entreprise est arrivée. « as entrepriseChargee » donne un nom à la -->
+        <!-- valeur du signal, utilisable dans le bloc (et TypeScript sait qu'elle existe). -->
+      } @else if (entreprise(); as entrepriseChargee) {
+        @if (hasErrorEnregistrement()) {
+          <div class="alert alert-danger" role="alert">
+            Les modifications n'ont pas pu être enregistrées. Réessayez plus tard.
+          </div>
+        }
+        <!-- Le formulaire partagé, prérempli avec l'entreprise reçue de l'API. -->
+        <!-- [entreprise] : passe l'objet en input ; (valider) : récupère les données saisies. -->
+        <app-form-entreprise
+          libelleValider="Enregistrer"
+          [entreprise]="entrepriseChargee"
+          (valider)="enregistrer($event)"
+        />
+        <!-- 3e cas : ni erreur ni entreprise, le chargement est en cours. -->
+      } @else {
+        <!-- aria-live="polite" : le message est annoncé sans interrompre l'utilisateur. -->
+        <p class="text-secondary mb-0" aria-live="polite">Chargement de l'entreprise…</p>
+      }
+    </div>
+
+    <!-- Pied de la carte : lien de retour à la liste (une navigation, donc un lien). -->
+    <div class="card-footer bg-body px-4 py-3">
+      <a routerLink="/entreprises" class="link-secondary">Retour à la liste des entreprises</a>
+    </div>
+  </div>
+</div>

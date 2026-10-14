@@ -26,6 +26,12 @@ export const routes: Routes = [
           import('./Feature-entreprises/pages/page-ajouter-entreprise/page-ajouter-entreprise'),
       },
       {
+        path: 'entreprises/:id/modifier',
+        title: 'Modifier une entreprise – Mini-CRM',
+        loadComponent: () =>
+          import('./Feature-entreprises/pages/page-modifier-entreprise/page-modifier-entreprise'),
+      },
+      {
         path: 'contacts',
         loadChildren: () => import('./Feature-contacts/contacts.routes'),
       },
