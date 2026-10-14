@@ -28,6 +28,7 @@ Modèle de notion, à recopier :
 3. [Les composants](#3-les-composants)
 4. [HTTP et services](#4-http-et-services)
 5. [Formulaires](#5-formulaires)
+6. [Tests unitaires](#6-tests-unitaires)
 
 ## 1. Démarrer une application Angular 22
 
@@ -1683,3 +1684,74 @@ private async charger(): Promise<void> {
 - [ActivatedRoute](https://angular.dev/api/router/ActivatedRoute)
 - [Contrôle de flux : `@if` avec `as`](https://angular.dev/guide/templates/control-flow)
 - [linkedSignal](https://angular.dev/guide/signals/linked-signal)
+
+## 6. Tests unitaires
+
+### 6.1 Écrire un test : d'abord « ce qu'il faut tester », puis Arrange / Act / Assert
+
+**En bref** : avant d'écrire un test, on liste les **comportements visibles** à vérifier (ce qui s'affiche, ce qui est émis, ce qui est appelé, ce qui est renvoyé), et ce qu'on ne teste pas. Chaque test suit ensuite trois étapes : **Arrange** (préparer), **Act** (agir), **Assert** (vérifier).
+
+**Explication** :
+- **Commencer par la liste « Ce qu'il faut tester »**, en commentaire en tête du fichier. Pour un guard : ce qu'il renvoie selon la session. Pour un formulaire : ce qui est émis, les erreurs affichées. Pour un service HTTP : la requête envoyée et ce qui est renvoyé. On y écrit aussi ce qu'on ne teste **pas** : l'implémentation interne (quels opérateurs, quelle méthode privée). Un bon test survit à une réécriture du code tant que le comportement ne change pas.
+- **Puis la stratégie** : quelles dépendances remplacer par des faux, et comment.
+  - **Composant dumb** : `setInput()` pour les entrées, un espion sur l'`output`.
+  - **Page smart** : un faux service, `{ provide: XService, useValue: faux }`.
+  - **Service HTTP** : `provideHttpClientTesting()` + `HttpTestingController`, et `verify()` à la fin.
+  - **Pipe** : `new MonPipe()`, sans TestBed.
+  - **Composant avec `ng-content`** : un composant hôte de test.
+  - **Guard ou fonction qui utilise `inject()`** : `TestBed.runInInjectionContext()`.
+- **Arrange / Act / Assert** : trois commentaires dans chaque test, qui rendent la lecture immédiate. Un test vérifie **un** comportement, et son nom en français le décrit (`it("redirige vers /connexion quand il n'y a pas de session")`).
+- **Sélectionner comme un utilisateur** : par libellé, texte, rôle ou balise sémantique (`header`, `main`), pas par classe CSS ni par position (`querySelector('a')` prend « le premier lien venu » et casse si l'ordre change).
+- **Tests indépendants** : on recrée les faux services dans `beforeEach` (ou dans chaque test) au lieu de partager une constante remise à zéro par `mockReset`. Aucun test ne doit dépendre d'un autre.
+
+**Pièges relevés en relisant les tests du mini-CRM** :
+- **Un test qui ne prouve rien** : vérifier que `slotStart` s'affiche avant `slotEnd` alors que le composant hôte les écrit déjà dans cet ordre ne teste rien. On les écrit dans l'ordre **inverse** pour prouver que c'est le composant qui range. Même idée pour le token de l'interceptor : il faut une requête, puis changer la session, puis une deuxième requête.
+- **Un test squelette** (`it('should create')`) ne vérifie presque rien. On le garde seulement pour un composant encore vide, avec un commentaire qui dit pourquoi.
+- **Providers oubliés** : un composant qui contient `<router-outlet>` ou des `routerLink` a besoin de `provideRouter([])` dans son test (« No provider found for ActivatedRoute »).
+- **Asynchrone** :
+  - avec `httpResource`, une requête en attente empêche `whenStable()` de se terminer : `TestBed.tick()` pour l'envoyer, `flush` pour répondre, **puis** `whenStable()` ;
+  - après un `flush` qui termine une fonction `async` (`await firstValueFrom(…)`), on laisse les promesses finir (`await new Promise((resolve) => setTimeout(resolve))`) ;
+  - `submit()` des Signal Forms lance son action plus tard : on attend après le clic.
+- **Apostrophe dans le nom d'un test** : `it('l'entreprise…')` casse la chaîne. On écrit `it("l'entreprise…")`.
+
+**Dans notre appli** (`src/app/Feature-auth/data-access/auth-guard.spec.ts`, extrait) :
+
+```ts
+/*
+ * Ce qu'il faut tester dans authGuard
+ * -----------------------------------
+ * Un guard `canActivate` répond à une seule question : « l'utilisateur a-t-il le droit d'entrer
+ * sur cette route ? ». Son comportement visible, c'est donc uniquement sa valeur de retour :
+ *  - avec une session ouverte, il renvoie `true` : la navigation continue ;
+ *  - sans session, il renvoie un `UrlTree` vers `/connexion` : le routeur redirige l'utilisateur
+ *    vers la page de connexion au lieu d'afficher la page protégée.
+ * On ne teste PAS la façon dont il s'y prend (quels services il injecte, dans quel ordre) :
+ * seulement « ce qui entre » (une session ou pas) et « ce qui sort » (true ou une redirection).
+ */
+
+it("redirige vers /connexion quand il n'y a pas de session", () => {
+  // Arrange : personne n'est connecté.
+  configurer(null);
+  // On récupère le Router de TestBed pour fabriquer l'URL attendue et lire le résultat.
+  const router = TestBed.inject(Router);
+
+  // Act : le routeur interroge le guard.
+  const resultat = executerGuard();
+
+  // Assert : le guard renvoie bien un UrlTree (une redirection), pas true ni false…
+  expect(resultat).toBeInstanceOf(UrlTree);
+  // … et cet UrlTree, converti en texte, correspond à l'URL /connexion.
+  expect(router.serializeUrl(resultat as UrlTree)).toBe(
+    router.serializeUrl(router.parseUrl('/connexion')),
+  );
+});
+```
+
+Tous les fichiers `.spec.ts` du projet suivent ce modèle et sont commentés ligne par ligne. Ce sont des exemples à lire en parallèle du code testé.
+
+**Docs officielles** :
+- [Tests dans Angular : vue d'ensemble](https://angular.dev/guide/testing)
+- [Tester les composants](https://angular.dev/guide/testing/components-basics)
+- [Tester les services](https://angular.dev/guide/testing/services)
+- [Tester les requêtes HTTP](https://angular.dev/guide/http/testing)
+- [Vitest : API (expect, vi.fn, vi.spyOn)](https://vitest.dev/api/)

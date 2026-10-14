@@ -399,15 +399,14 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - `EntreprisesService` (CRUD, observables froids) et `PageEntreprises` (liste dans `LayoutPages` avec `httpResource()` : chargement, erreur, liste vide, lien « Ajouter une entreprise », colonne Actions : lien Modifier, suppression avec confirmation et rechargement). Avec leurs tests.
 - `authGuard` sur la coque `AppShell` : pages de l'application réservées aux utilisateurs connectés.
 - Entreprises : feature complète (liste, ajout, modification, suppression), commentée ligne par ligne. Page de modification `PageModifierEntreprise` (route `/entreprises/:id/modifier`). Page d'ajout (`PageAjouterEntreprise`) et formulaire partagé `FormEntreprise` en Signal Forms (validation du nom et du téléphone, erreurs accessibles), avec leurs tests.
+- **Tests unitaires relus et commentés** : les 28 fichiers `.spec.ts` (142 tests, tous verts) commencent par un bloc « Ce qu'il faut tester » (comportements vérifiés, ce qu'on ne teste pas, stratégie), chaque ligne est commentée pour les apprenants, et chaque test suit Arrange / Act / Assert. La relecture a corrigé `app.spec.ts` et `app-shell.spec.ts` (il manquait `provideRouter([])`), écrit de vrais tests pour `authGuard`, et rendu plus solides plusieurs tests (ordre des slots, token relu à chaque requête, faux services recréés à chaque test, sélection par texte ou libellé).
 - `errorsInterceptor` : sur le modèle de la doc (`tap`), 401 hors `/auth/` → déconnexion et `/connexion`, 500 → `ErrorHandler`. Avec ses tests.
 - Feature auth complète, requêtes en observables : `AuthService` (connexion, inscription, déconnexion, session en `signal()` + `localStorage`, d'abord écrite avec un `BehaviorSubject`), `FormAuth` (formulaire réactif, connexion et inscription), `PageAuth` (pipe `async`, navigation, messages d'erreur). Avec leurs tests.
 
 ### À faire
 
 - Retirer de `App` les imports inutilisés (`LayoutSlice`, `LayoutTopBottom`, `LayoutPages` : avertissements `NG8113` au build).
-- Corriger `app-shell.spec.ts` : `AppShell` ne se crée pas sans `provideRouter()` (erreur « No provider found for `ActivatedRoute` »).
 - Supprimer l'écart d'architecture de `Header` (`shared/` qui importe `AuthService` de la feature auth) : session dans un service de `shared/`, ou données passées par `AppShell`.
-- Corriger `app.spec.ts` : il cherche encore le `<h1>` du template par défaut, et `App` ne se crée plus sans `provideRouter()` (le header contient des `routerLink`).
 - Aligner les dossiers sur l'architecture cible (voir l'écart en 1.1).
 - Installer et configurer Playwright (dossier `e2e/`, scripts `npm run e2e*`).
 - Budget du bundle initial dépassé au build (518 kB pour 500 kB, dont 231 kB de CSS Bootstrap ; 103 kB transférés) : à examiner.
