@@ -145,6 +145,20 @@ describe('EntreprisesService', () => {
       httpTesting.expectOne(`${URL_ENTREPRISES}/1`).flush(null);
     });
 
+    it("charge toute la liste avec un GET, sous forme de Promise (méthode utilisée par le store)", async () => {
+      // Arrange : rien à préparer.
+
+      // Act : on lance le chargement ; on garde la Promise pour la lire après la réponse.
+      const chargement = service.chargerListe();
+      // La requête est partie tout de suite (firstValueFrom s'abonne) : on y répond.
+      const requete = httpTesting.expectOne(URL_ENTREPRISES);
+      requete.flush([techVision]);
+
+      // Assert : la méthode HTTP, et la liste rendue par la Promise.
+      expect(requete.request.method).toBe('GET');
+      expect(await chargement).toEqual([techVision]);
+    });
+
     it("trouve une entreprise avec un GET et renvoie la réponse de l'API", async () => {
       // Arrange : rien à préparer.
 

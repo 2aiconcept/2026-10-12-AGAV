@@ -155,15 +155,19 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
 
 > **Feature complète et commentée ligne par ligne** : tous les fichiers TypeScript et HTML de la feature (hors tests) portent des commentaires explicatifs pour les apprenants. C'est une exception volontaire à la règle « commenter seulement le pourquoi ».
 
-> **Étape 3, API seule source de vérité** : l'application est multi-utilisateur, donc aucune donnée n'est gardée en local. La **liste** est lue avec `httpResource()` (signals `value()`, `isLoading()`, `error()`, `hasValue()`, `reload()`). Les **écritures** (`creer`, `modifier`, `supprimer`) et `trouver` passent par `HttpClient` + `firstValueFrom` (des `Promise`, avec `async/await`). Après chaque écriture, la page relit la liste sur l'API avec `reload()` : on ne met jamais à jour une liste à la main. Les versions `Observable` d'origine sont gardées en commentaire dans le service.
+> **NgRx Signal Store, API seule source de vérité** : l'état de la liste est dans `EntreprisesStore` (`@ngrx/signals`). Les pages lisent ses signals et appellent ses actions. Le **service est conservé** : le store s'en sert pour parler à l'API (`chargerListe`, `creer`, `modifier`, `supprimer`), et la page de modification l'utilise pour `trouver`. Le store ne modifie jamais la liste à la main : après chaque écriture, il la **relit sur l'API**. Les versions précédentes sont gardées en commentaire : `Observable` dans le service ; `httpResource` + `reload()` dans la page liste. `lister()` (ressource) reste disponible dans le service. Guide pour les apprenants : `src/app/Feature-entreprises/ngrx-signal-store.md`.
 
 #### PageEntreprises (`Feature-entreprises/pages/page-entreprises/page-entreprises.ts`)
 - **Type** : smart
 - **Rôle** : liste des entreprises dans `LayoutPages`. En-tête (`pageHeader`, `d-flex justify-content-between`) : « Portefeuille commercial » et le titre `h1` « Entreprises » à gauche, à droite le lien-bouton « + Ajouter une entreprise » (`<a routerLink="/entreprises/ajouter">`, `btn btn-primary rounded-pill`). Il mène à `PageAjouterEntreprise`. Contenu : tableau Bootstrap (`table table-hover`, `<caption>` masquée pour les lecteurs d'écran, `<th scope="col">`) avec nom + adresse, secteur, téléphone et une colonne **Actions**. Pied (`pageFooter`) : nombre d'entreprises affichées.
-- **Données** : `entreprises = entreprisesService.lister()`, une ressource HTTP créée à l'initialisation de la page (contexte d'injection) : la requête part tout de suite, sans abonnement. Le template lit ses signals, dans cet ordre : `error()` → alerte « Impossible de charger les entreprises. » (`role="alert"`) ; `hasValue()` → tableau avec `value()` ; sinon « Chargement des entreprises… » (`aria-live`). Liste vide : « Aucune entreprise. » (`@empty`). On ne lit jamais `value()` sans avoir testé `hasValue()` (lire `value()` en erreur lève une exception).
+- **Données** : injecte `EntreprisesStore` (`protected readonly store`). Le constructeur appelle `store.charger()` à chaque arrivée sur la page : le store est partagé, sa liste peut dater d'une visite précédente. Le template lit les signals du store, dans cet ordre :
+  - `store.erreur()` → alerte avec le message (`role="alert"`) ;
+  - `!store.isLoading() || store.nombre() > 0` → tableau avec `store.entreprises()` (pendant un rechargement, l'ancienne liste reste affichée) ;
+  - sinon « Chargement des entreprises… » (`aria-live`).
+  Liste vide : « Aucune entreprise. » (`@empty`). Pied de page : `store.nombre()`. L'ancienne version (ressource `httpResource`) est en commentaire dans la classe.
 - **Actions par ligne** :
   - **Modifier** : lien `<a routerLink>` vers `/entreprises/{id}/modifier` (`PageModifierEntreprise`).
-  - **Supprimer** : bouton qui demande une confirmation (`confirm()`), attend `EntreprisesService.supprimer(id)` (`await`), puis relit la liste sur l'API avec `entreprises.reload()`. Pendant le rechargement, l'ancienne liste reste affichée (`hasValue()` reste vrai). Si la suppression échoue, la promesse est rejetée : pas de rechargement, et l'erreur part au gestionnaire d'erreurs global (un 401 est traité par `errorsInterceptor`).
+  - **Supprimer** : bouton qui demande une confirmation (`confirm()`), puis attend `store.supprimer(id)` : le store supprime sur l'API et relit la liste. Si la suppression échoue, la promesse est rejetée : pas de rechargement, et l'erreur part au gestionnaire d'erreurs global (un 401 est traité par `errorsInterceptor`).
   - Le nom de l'entreprise est ajouté en texte masqué (`visually-hidden`) dans chaque lien et bouton : « Modifier TechVision », « Supprimer TechVision ».
 - **Pas encore** : recherche.
 - **Utilisé par** : route `entreprises`.
@@ -171,7 +175,7 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
 #### PageAjouterEntreprise (`Feature-entreprises/pages/page-ajouter-entreprise/page-ajouter-entreprise.ts`)
 - **Type** : smart
 - **Rôle** : création d'une entreprise. Carte Bootstrap avec le titre `h1` « Ajouter une entreprise », le formulaire `<app-form-entreprise libelleValider="Ajouter">` et un lien « Retour à la liste des entreprises ».
-- **Fonctionnement** : à l'événement `valider`, `ajouter()` attend `EntreprisesService.creer()`, puis navigue vers `/entreprises`. La page liste crée une nouvelle ressource, donc relit l'API : la nouvelle entreprise apparaît, sans état local. En cas d'échec, signal `hasError` → alerte `role="alert"`, et on reste sur la page.
+- **Fonctionnement** : à l'événement `valider`, `ajouter()` attend `store.ajouter()` (création sur l'API puis relecture de la liste), puis navigue vers `/entreprises`, qui relit aussi l'API à son arrivée. En cas d'échec, signal `hasError` → alerte `role="alert"`, et on reste sur la page.
 - **Utilisé par** : route `entreprises/ajouter`.
 
 #### PageModifierEntreprise (`Feature-entreprises/pages/page-modifier-entreprise/page-modifier-entreprise.ts`)
@@ -181,7 +185,7 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
 - **Fonctionnement** :
   - au démarrage (constructeur), `charger()` attend `EntreprisesService.trouver(id)` et range la réponse de l'API dans le signal `entreprise` ;
   - le template affiche dans l'ordre : l'erreur de chargement (`hasErrorChargement`, `role="alert"`), le formulaire prérempli `<app-form-entreprise [entreprise]="…" libelleValider="Enregistrer">` (`@else if (entreprise(); as entrepriseChargee)`), ou « Chargement de l'entreprise… » (`aria-live`) ;
-  - à l'événement `valider`, `enregistrer()` attend `modifier(id, …)` puis navigue vers `/entreprises` (la liste relit l'API) ; en cas d'échec, `hasErrorEnregistrement` → alerte, et on reste sur la page.
+  - la lecture de l'entreprise passe par le **service** (`trouver`), car le store ne garde que la liste ; l'enregistrement passe par le **store** (`store.modifier(id, …)`, qui relit la liste), puis la page navigue vers `/entreprises` ; en cas d'échec, `hasErrorEnregistrement` → alerte, et on reste sur la page.
 - **Utilisé par** : route `entreprises/:id/modifier`.
 
 #### FormEntreprise (`Feature-entreprises/ui/form-entreprise/form-entreprise.ts`)
@@ -199,17 +203,28 @@ Sauf mention contraire (voir `PageAuth`, `Nav`, `Logo`, `ButtonSmall`, `BadgeUti
 - **Sorties** : `valider` (`output<EntrepriseInput>()`). À la soumission (`(submit)` + `preventDefault()`), `submit(formulaire, action)` marque les champs comme touchés (toutes les erreurs s'affichent) et n'exécute l'action, qui émet `modele()`, que si toutes les règles sont respectées.
 - **Utilisé par** : `PageAjouterEntreprise`, `PageModifierEntreprise`.
 
+#### EntreprisesStore (`Feature-entreprises/data-access/entreprises-store.ts`)
+- **Type** : store NgRx Signal Store (`signalStore`, `providedIn: 'root'`).
+- **État** (`withState`) : `entreprises` (`Entreprise[]`, la dernière réponse de l'API), `isLoading` (`boolean`), `erreur` (`string | null`). Chaque champ est un signal en lecture seule : `store.entreprises()`…
+- **Valeur calculée** (`withComputed`) : `nombre` (taille de la liste).
+- **Actions** (`withMethods`, avec `inject(EntreprisesService)`) :
+  - `charger()` : `isLoading` à `true`, `chargerListe()`, puis la liste prend exactement la réponse ; en cas d'échec, `erreur` = « Impossible de charger les entreprises. Réessayez plus tard. » ;
+  - `ajouter(entreprise)`, `modifier(id, entreprise)`, `supprimer(id)` : appellent le service, **puis** `charger()`. Si l'écriture échoue, pas de relecture : la `Promise` est rejetée et la page affiche son message.
+- **Règle** : l'état n'est jamais modifié à la main (pas d'ajout ni de retrait local). Il n'est rempli que par les réponses de l'API, via `patchState`.
+- **Utilisé par** : `PageEntreprises` (`charger`, `supprimer`, signals), `PageAjouterEntreprise` (`ajouter`), `PageModifierEntreprise` (`modifier`).
+
 #### EntreprisesService (`Feature-entreprises/data-access/entreprises-service.ts`)
 - **Type** : service (`@Service()`).
-- **Rôle** : CRUD des entreprises sur `${environment.apiBaseUrl}/entreprises`, **sans aucun état** (pas de signal, pas de liste en mémoire) : l'API est la seule source de vérité. La lecture de la liste est une ressource HTTP (signals) ; les autres méthodes renvoient une `Promise` (`firstValueFrom`), qui s'abonne tout de suite : la requête part dès l'appel. Le token est ajouté par `jwtInterceptor`.
+- **Rôle** : CRUD des entreprises sur `${environment.apiBaseUrl}/entreprises`, **sans aucun état** (pas de signal, pas de liste en mémoire) : l'API est la seule source de vérité. La liste se lit de deux façons : `lister()` (ressource `httpResource`, gardée pour l'exemple) et `chargerListe()` (`Promise`, utilisée par le store). Les autres méthodes renvoient une `Promise` (`firstValueFrom`), qui s'abonne tout de suite : la requête part dès l'appel. Le token est ajouté par `jwtInterceptor`.
 - **Méthodes** :
-  - `lister(): HttpResourceRef<Entreprise[] | undefined>` : `GET /entreprises` avec `httpResource()`. La requête part dès la création. **À appeler dans un contexte d'injection** (initialisation d'une propriété de composant). L'ancienne version (`Observable` + `http.get`) est gardée en commentaire dans le fichier, pour la comparaison.
+  - `lister(): HttpResourceRef<Entreprise[] | undefined>` : `GET /entreprises` avec `httpResource()`. La requête part dès la création. **À appeler dans un contexte d'injection** (initialisation d'une propriété de composant). L'ancienne version (`Observable` + `http.get`) est gardée en commentaire dans le fichier, pour la comparaison. N'est plus appelée par les pages depuis le store (gardée pour l'exemple).
+  - `chargerListe(): Promise<Entreprise[]>` : `GET /entreprises` avec `firstValueFrom`. C'est la version utilisée par le store, car une ressource ne peut pas être créée dans une méthode du store.
   - `trouver(id): Promise<Entreprise>` : `GET /entreprises/{id}`.
   - `creer(entreprise: EntrepriseInput): Promise<Entreprise>` : `POST /entreprises`, renvoie l'entreprise créée par l'API.
   - `modifier(id, entreprise: EntrepriseInput): Promise<Entreprise>` : `PUT /entreprises/{id}` (mise à jour partielle côté API), renvoie l'entreprise modifiée.
   - `supprimer(id): Promise<void>` : `DELETE /entreprises/{id}`.
   - En cas d'erreur HTTP, la promesse est rejetée avec la `HttpErrorResponse`.
-- **Utilisé par** : `PageEntreprises` (`lister`, `supprimer`), `PageAjouterEntreprise` (`creer`), `PageModifierEntreprise` (`trouver`, `modifier`).
+- **Utilisé par** : `EntreprisesStore` (`chargerListe`, `creer`, `modifier`, `supprimer`), `PageModifierEntreprise` (`trouver`).
 
 #### Entreprise (`Feature-entreprises/models/entreprise.ts`)
 - **Type** : modèle (interface)
@@ -409,8 +424,9 @@ _Pas encore de dossier `layout/` (voir l'écart en 1.1)._
 - API documentée depuis le Swagger dans `.claude/endpoints-et-donnees.md` (endpoints, modèles, erreurs).
 - `provideHttpClient()` dans `app.config.ts`.
 - `jwtInterceptor` : token JWT ajouté aux requêtes vers l'API (`Authorization: Bearer`), enregistré avec `withInterceptors`. Avec ses tests.
-- `EntreprisesService` (CRUD, observables froids) et `PageEntreprises` (liste dans `LayoutPages` avec `httpResource()` : chargement, erreur, liste vide, lien « Ajouter une entreprise », colonne Actions : lien Modifier, suppression avec confirmation et rechargement). Avec leurs tests.
+- `EntreprisesService` (CRUD, d'abord en observables froids, puis `httpResource` / `firstValueFrom`) et `PageEntreprises` (liste dans `LayoutPages` : chargement, erreur, liste vide, lien « Ajouter une entreprise », colonne Actions : lien Modifier, suppression avec confirmation et relecture de l'API). La page lit aujourd'hui l'état dans `EntreprisesStore`. Avec leurs tests.
 - `authGuard` sur la coque `AppShell` : pages de l'application réservées aux utilisateurs connectés.
+- **NgRx Signal Store** (`@ngrx/signals` 22) : `EntreprisesStore` pour la feature entreprises (état, `nombre`, actions qui relisent l'API après chaque écriture), utilisé par les trois pages. Le service est conservé. Tests du store (9) avec un faux service ; specs des pages d'ajout et de modification avec un faux store. Guide `Feature-entreprises/ngrx-signal-store.md`. 152 tests unitaires et 49 tests e2e verts.
 - Entreprises : feature complète (liste, ajout, modification, suppression), commentée ligne par ligne. Page de modification `PageModifierEntreprise` (route `/entreprises/:id/modifier`). Page d'ajout (`PageAjouterEntreprise`) et formulaire partagé `FormEntreprise` en Signal Forms (validation du nom et du téléphone, erreurs accessibles), avec leurs tests.
 - **Tests unitaires relus et commentés** : les 28 fichiers `.spec.ts` (142 tests, tous verts) commencent par un bloc « Ce qu'il faut tester » (comportements vérifiés, ce qu'on ne teste pas, stratégie), chaque ligne est commentée pour les apprenants, et chaque test suit Arrange / Act / Assert. La relecture a corrigé `app.spec.ts` et `app-shell.spec.ts` (il manquait `provideRouter([])`), écrit de vrais tests pour `authGuard`, et rendu plus solides plusieurs tests (ordre des slots, token relu à chaque requête, faux services recréés à chaque test, sélection par texte ou libellé).
 - **Tests e2e Playwright** : installation (`@playwright/test`, `@axe-core/playwright`, navigateurs), `playwright.config.ts`, scripts `npm run e2e*`, fausse API, connexion factorisée (`setup` + `storageState`), parcours auth et entreprises commentés pour les apprenants, audit axe. 16 tests × 3 navigateurs + setup = 49 tests, tous verts. Guide `playwright.md`.

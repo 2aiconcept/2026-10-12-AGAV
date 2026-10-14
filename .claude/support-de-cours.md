@@ -30,6 +30,7 @@ Modèle de notion, à recopier :
 5. [Formulaires](#5-formulaires)
 6. [Tests unitaires](#6-tests-unitaires)
 7. [Tests e2e avec Playwright](#7-tests-e2e-avec-playwright)
+8. [NgRx Signal Store](#8-ngrx-signal-store)
 
 ## 1. Démarrer une application Angular 22
 
@@ -1305,6 +1306,8 @@ private recharger(): void {
 
 ### 4.11 Avant / après : lire une liste avec `httpResource()`
 
+> **Étape suivante** : la page liste lit maintenant l'état dans un NgRx Signal Store (voir 8.1). `lister()` (`httpResource`) reste dans le service comme exemple, et les extraits de la page ci-dessous sont une étape intermédiaire.
+
 **En bref** : `httpResource()` lance une requête GET et expose le résultat sous forme de **signals** : `value()`, `hasValue()`, `isLoading()`, `error()`, plus `reload()` pour relancer. Plus de pipe `async`, plus d'abonnement.
 
 **Explication** :
@@ -1386,6 +1389,8 @@ await fixture.whenStable();
 - [Tester les requêtes HTTP](https://angular.dev/guide/http/testing)
 
 ### 4.12 Écrire avec `firstValueFrom`, relire avec `reload()` : l'API, seule source de vérité
+
+> **Étape suivante** : avec le Signal Store (8.1), c'est le store qui relit la liste (`charger()`) après chaque écriture, et la page n'appelle plus `reload()`. Le principe reste le même : l'API est la seule source de vérité. Les écritures du service (`firstValueFrom`) n'ont pas changé.
 
 **En bref** : `firstValueFrom()` transforme l'observable de `HttpClient` en `Promise`, qu'on attend avec `await`. Après une écriture, on ne modifie jamais la liste à la main : on la **relit sur l'API** avec `reload()`.
 
@@ -1836,3 +1841,93 @@ async brancher(): Promise<void> {
 - [Simuler une API (page.route)](https://playwright.dev/docs/mock)
 - [Tests d'accessibilité](https://playwright.dev/docs/accessibility-testing)
 - [WCAG 2.2 : contraste minimum (1.4.3)](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)
+
+## 8. NgRx Signal Store
+
+### 8.1 Rassembler l'état d'une feature dans un Signal Store
+
+**En bref** : un **store** rassemble au même endroit l'état d'une feature (les données, le chargement, l'erreur), les valeurs calculées et les actions. Avec **NgRx Signal Store** (`@ngrx/signals`), il se construit avec des signals, en quelques couches : `withState`, `withComputed`, `withMethods`.
+
+**Explication** :
+- **Pourquoi** : sans store, chaque page gérait son propre état de liste (une ressource dans la liste, des appels directs au service dans les formulaires). Avec un store, les pages ne font plus que **lire** des signals (`store.entreprises()`) et **appeler** des actions (`store.supprimer(id)`). L'état est au même endroit, testé une fois.
+- **Installation** : `npm install @ngrx/signals`. Les versions de NgRx suivent celles d'Angular (22 pour Angular 22). Aucune configuration dans `app.config.ts` : `providedIn: 'root'` suffit. Le guide de la feature, `src/app/Feature-entreprises/ngrx-signal-store.md`, détaille tout pour les apprenants.
+- **`signalStore(...)`** crée une **classe** injectable : on l'injecte avec `inject(EntreprisesStore)`, comme un service.
+- **Les couches, dans l'ordre** :
+  - **`withState(ETAT_INITIAL)`** : chaque champ devient un signal en **lecture seule** pour l'extérieur. Une page ne peut pas écrire dans l'état : elle doit passer par une action ;
+  - **`withComputed`** : des valeurs dérivées, recalculées toutes seules (`nombre`) ;
+  - **`withMethods`** : les actions. On y utilise `inject()` pour récupérer le service, et **`patchState(store, { … })`** pour mettre à jour une partie de l'état (les autres champs ne bougent pas).
+- **Service et store, deux rôles** : le **service parle à l'API** (HTTP), le **store garde l'état** et orchestre. Le store appelle le service ; on ne supprime pas le service.
+- **Le piège** : `httpResource` doit être créé dans un contexte d'injection, ce qui n'est pas le cas d'une méthode du store. Le store utilise donc une méthode du service qui renvoie une `Promise` (`chargerListe()`, avec `firstValueFrom`).
+- **Règle du projet, multi-utilisateur** : le store ne modifie **jamais** la liste à la main (pas de `[...liste, nouvelle]`, pas de `filter` après une suppression). Après chaque écriture, il appelle `charger()` et la liste redevient la réponse de l'API.
+- **Store partagé** (`providedIn: 'root'`) : la liste chargée par une page reste disponible pour les autres. La page liste appelle quand même `store.charger()` à chaque arrivée, pour ne pas afficher une liste périmée.
+- **Tester** :
+  - **le store**, avec un **faux service** : `{ chargerListe: vi.fn().mockResolvedValue([...]) }`, puis `TestBed.inject(EntreprisesStore)`. On vérifie les signals après chaque action, et que les écritures relisent la liste ;
+  - **une page**, avec un **faux store** : `{ provide: EntreprisesStore, useValue: { ajouter: vi.fn() } }`.
+
+**Dans notre appli** (`src/app/Feature-entreprises/data-access/entreprises-store.ts`, extrait) :
+
+```ts
+export const EntreprisesStore = signalStore(
+  // providedIn: 'root' : une seule instance, partagée par toute l'application (comme
+  // @Service()). La liste chargée par une page est donc visible par les autres pages.
+  { providedIn: 'root' },
+
+  // 1. L'état : chaque champ devient un signal en lecture seule pour l'extérieur :
+  //    store.entreprises(), store.isLoading(), store.erreur().
+  withState(ETAT_INITIAL),
+
+  // 2. Les valeurs calculées : elles se mettent à jour toutes seules quand l'état change.
+  withComputed(({ entreprises }) => ({
+    nombre: computed(() => entreprises().length),
+  })),
+
+  // 3. Les méthodes : les actions que les pages appellent.
+  withMethods((store, entreprisesService = inject(EntreprisesService)) => {
+    async function charger(): Promise<void> {
+      patchState(store, { isLoading: true, erreur: null });
+      try {
+        const entreprises = await entreprisesService.chargerListe();
+        // L'état prend exactement la réponse de l'API : c'est elle, la source de vérité.
+        patchState(store, { entreprises });
+      } catch {
+        patchState(store, { erreur: MESSAGE_ERREUR_CHARGEMENT });
+      } finally {
+        patchState(store, { isLoading: false });
+      }
+    }
+
+    return {
+      charger,
+      async supprimer(id: number): Promise<void> {
+        await entreprisesService.supprimer(id);
+        await charger();
+      },
+      // ajouter, modifier : même principe
+    };
+  }),
+);
+```
+
+Dans la page liste, **avant / après** :
+
+```ts
+// Avant : la page créait sa propre ressource et la rechargeait.
+protected readonly entreprises = this.entreprisesService.lister();
+await this.entreprisesService.supprimer(entreprise.id);
+this.entreprises.reload();
+
+// Après : la page lit le store et appelle ses actions.
+protected readonly store = inject(EntreprisesStore);
+await this.store.supprimer(entreprise.id);
+```
+
+```html
+@for (entreprise of store.entreprises(); track entreprise.id) { … }
+<p>{{ store.nombre() }} entreprise(s) affichée(s)</p>
+```
+
+**Docs officielles** :
+- [NgRx Signals : vue d'ensemble](https://ngrx.io/guide/signals)
+- [NgRx Signals : installation](https://ngrx.io/guide/signals/install)
+- [SignalStore](https://ngrx.io/guide/signals/signal-store)
+- [Signals dans Angular](https://angular.dev/guide/signals)

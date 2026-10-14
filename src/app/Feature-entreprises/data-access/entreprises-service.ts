@@ -47,6 +47,18 @@ export class EntreprisesService {
   }
 
   // ---------------------------------------------------------------------------
+  // chargerListe : toutes les entreprises, sous forme de Promise (utilisée par le store)
+  // ---------------------------------------------------------------------------
+
+  // lister() renvoie une ressource (httpResource), qui doit être créée dans un contexte
+  // d'injection : on ne peut pas l'appeler depuis une méthode du store. Le store utilise donc
+  // cette version, qui fait la même requête GET mais renvoie une Promise.
+  chargerListe(): Promise<Entreprise[]> {
+    // GET sur /entreprises ; firstValueFrom transforme la réponse en Promise.
+    return firstValueFrom(this.http.get<Entreprise[]>(this.apiUrl));
+  }
+
+  // ---------------------------------------------------------------------------
   // trouver : une entreprise par son id
   // ---------------------------------------------------------------------------
 

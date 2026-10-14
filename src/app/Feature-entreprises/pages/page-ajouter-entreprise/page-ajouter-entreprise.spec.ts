@@ -4,16 +4,19 @@
 // Le rôle de cette page : afficher le formulaire, et quand il est validé, demander la création
 // à l'API puis revenir à la liste. On vérifie donc :
 // - ce qui s'affiche : le titre, le formulaire avec un bouton « Ajouter », le lien de retour ;
-// - le cas qui réussit : le service reçoit les données saisies, puis on navigue vers la liste ;
+// - le cas qui réussit : le store reçoit les données saisies (store.ajouter), puis on navigue
+//   vers la liste ;
 // - le cas qui échoue : un message d'erreur s'affiche et on RESTE sur la page.
 //
 // Ce qu'on ne teste PAS :
 // - la validation des champs : c'est le travail de FormEntreprise, testé dans son propre fichier ;
-// - la requête HTTP : c'est le travail du service, testé dans entreprises-service.spec.ts ;
+// - la requête HTTP et la relecture de la liste : c'est le travail du store et du service,
+//   testés dans entreprises-store.spec.ts et entreprises-service.spec.ts ;
 // - les signals internes (hasError) : on regarde le message affiché, pas la variable.
 //
-// Stratégie : un FAUX service (un objet avec une fonction espion vi.fn()) remplace le vrai
-// EntreprisesService. On choisit sa réponse à chaque test (succès ou échec) sans aucun HTTP.
+// Stratégie : un FAUX store (un objet avec une fonction espion vi.fn()) remplace le vrai
+// EntreprisesStore, que la page injecte. On choisit sa réponse à chaque test (succès ou échec),
+// sans aucun HTTP. (Avant le store, la page injectait le service, et c'est lui qu'on remplaçait.)
 // Pour simuler la validation du formulaire, on fait émettre directement l'output « valider » du
 // composant enfant : c'est exactement ce que la page reçoit en vrai, sans dépendre des champs.
 // =================================================================================================
@@ -26,8 +29,8 @@ import { By } from '@angular/platform-browser';
 // provideRouter : la page utilise le routeur (navigateByUrl, routerLink).
 // Router : le service de navigation, qu'on va espionner.
 import { provideRouter, Router } from '@angular/router';
-// Le service à remplacer par un faux (il sert de « clé » dans les providers).
-import { EntreprisesService } from '../../data-access/entreprises-service';
+// Le store à remplacer par un faux (il sert de « clé » dans les providers).
+import { EntreprisesStore } from '../../data-access/entreprises-store';
 // Le type des données émises par le formulaire.
 import { EntrepriseInput } from '../../models/entreprise-input';
 // Le composant enfant, pour le retrouver avec By.directive.
@@ -40,8 +43,8 @@ describe('PageAjouterEntreprise', () => {
   let element: HTMLElement;
   // Espion sur Router.navigateByUrl : on vérifie l'appel sans vraiment naviguer.
   let navigateByUrl: ReturnType<typeof vi.spyOn>;
-  // Le faux service : seule la méthode utilisée par la page (creer) est fournie.
-  let fauxService: { creer: ReturnType<typeof vi.fn> };
+  // Le faux store : seule la méthode utilisée par la page (ajouter) est fournie.
+  let fauxStore: { ajouter: ReturnType<typeof vi.fn> };
 
   // Les données « saisies » dans le formulaire.
   const nouvelleEntreprise: EntrepriseInput = { nom: 'DataCorp', secteur: 'Data & IA' };
@@ -49,15 +52,15 @@ describe('PageAjouterEntreprise', () => {
   beforeEach(async () => {
     // vi.fn() crée une fonction espion : elle enregistre ses appels (arguments, nombre d'appels)
     // et on peut lui dicter ce qu'elle renvoie. Recréée à chaque test : aucun état partagé.
-    fauxService = { creer: vi.fn() };
+    fauxStore = { ajouter: vi.fn() };
 
     await TestBed.configureTestingModule({
       imports: [PageAjouterEntreprise],
       providers: [
         // Un routeur sans routes : suffisant pour routerLink et navigateByUrl.
         provideRouter([]),
-        // « Quand quelqu'un demande EntreprisesService, donne-lui fauxService. »
-        { provide: EntreprisesService, useValue: fauxService },
+        // « Quand quelqu'un demande EntreprisesStore, donne-lui fauxStore. »
+        { provide: EntreprisesStore, useValue: fauxStore },
       ],
     }).compileComponents();
 
@@ -118,23 +121,23 @@ describe('PageAjouterEntreprise', () => {
   });
 
   it("crée l'entreprise puis revient à la liste", async () => {
-    // Arrange : le faux service répond comme l'API (l'entreprise créée, avec son id).
+    // Arrange : le faux store réussit (création et relecture de la liste terminées).
     // mockResolvedValue : la fonction renvoie une Promise qui réussit avec cette valeur.
-    fauxService.creer.mockResolvedValue({ id: 5, ...nouvelleEntreprise });
+    fauxStore.ajouter.mockResolvedValue(undefined);
 
     // Act : le formulaire est validé, puis on attend la fin de ajouter().
     validerLeFormulaire(nouvelleEntreprise);
     await attendreLaFinDeLAjout();
 
-    // Assert : le service a reçu les données saisies, puis la page a navigué vers la liste.
-    expect(fauxService.creer).toHaveBeenCalledWith(nouvelleEntreprise);
+    // Assert : le store a reçu les données saisies, puis la page a navigué vers la liste.
+    expect(fauxStore.ajouter).toHaveBeenCalledWith(nouvelleEntreprise);
     expect(navigateByUrl).toHaveBeenCalledWith('/entreprises');
   });
 
   it('affiche une erreur et reste sur la page si la création échoue', async () => {
-    // Arrange : le faux service échoue, comme l'API en panne.
+    // Arrange : le faux store échoue, comme si l'API refusait la création.
     // mockRejectedValue : la fonction renvoie une Promise rejetée (le catch de la page s'exécute).
-    fauxService.creer.mockRejectedValue(new Error('erreur'));
+    fauxStore.ajouter.mockRejectedValue(new Error('erreur'));
 
     // Act : le formulaire est validé, puis on attend la fin de ajouter().
     validerLeFormulaire(nouvelleEntreprise);

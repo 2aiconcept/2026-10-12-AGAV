@@ -22,15 +22,15 @@
   </div>
 
   <!-- ===================== Contenu (zone par défaut du layout) ===================== -->
-  <!-- 1er cas : la requête a échoué. On teste error() AVANT de lire value(), -->
-  <!-- car lire value() d'une ressource en erreur provoque une exception. -->
-  @if (entreprises.error()) {
+  <!-- On lit les signals du store : store.erreur(), store.isLoading(), store.entreprises()… -->
+  <!-- (Version précédente : les signals d'une ressource, entreprises.error() / hasValue() / value().) -->
+  <!-- 1er cas : le dernier chargement a échoué. « as erreur » nomme le message du store. -->
+  @if (store.erreur(); as erreur) {
     <!-- role="alert" : le message est annoncé tout de suite par les lecteurs d'écran. -->
-    <div class="alert alert-danger m-3" role="alert">
-      Impossible de charger les entreprises. Réessayez plus tard.
-    </div>
-    <!-- 2e cas : les données sont arrivées (hasValue() vrai). -->
-  } @else if (entreprises.hasValue()) {
+    <div class="alert alert-danger m-3" role="alert">{{ erreur }}</div>
+    <!-- 2e cas : on a une liste à montrer. Pendant un rechargement, on garde l'ancienne liste -->
+    <!-- affichée (pas de clignotement) ; on n'affiche « Chargement… » que si on n'a encore rien. -->
+  } @else if (!store.isLoading() || store.nombre() > 0) {
     <!-- table-hover : survol des lignes ; align-middle : contenu centré verticalement. -->
     <table class="table table-hover align-middle mb-0">
       <!-- Titre du tableau, masqué à l'écran mais lu par les lecteurs d'écran. -->
@@ -45,10 +45,10 @@
         </tr>
       </thead>
       <tbody>
-        <!-- Une ligne par entreprise renvoyée par l'API (value()). -->
+        <!-- Une ligne par entreprise du store (la dernière liste renvoyée par l'API). -->
         <!-- track entreprise.id : Angular reconnaît chaque ligne par son id et ne recrée que -->
         <!-- les lignes qui changent quand la liste est rechargée. -->
-        @for (entreprise of entreprises.value(); track entreprise.id) {
+        @for (entreprise of store.entreprises(); track entreprise.id) {
           <tr>
             <td>
               <!-- {{ … }} : interpolation, affiche la valeur dans le HTML. -->
@@ -90,7 +90,7 @@
         }
       </tbody>
     </table>
-    <!-- 3e cas : ni erreur ni données, la requête est en cours. -->
+    <!-- 3e cas : premier chargement en cours, rien à afficher encore. -->
   } @else {
     <!-- aria-live="polite" : le message est annoncé sans interrompre l'utilisateur. -->
     <p class="text-secondary text-center py-4 mb-0" aria-live="polite">
@@ -101,7 +101,7 @@
   <!-- ===================== Pied (zone pageFooter) ===================== -->
   <!-- aria-live : le nouveau nombre est annoncé quand la liste change. -->
   <p pageFooter class="small text-secondary mb-0" aria-live="polite">
-    <!-- On ne lit value() que si hasValue() est vrai ; sinon on affiche 0. -->
-    {{ entreprises.hasValue() ? entreprises.value().length : 0 }} entreprise(s) affichée(s)
+    <!-- nombre() : valeur calculée du store (withComputed), recalculée quand la liste change. -->
+    {{ store.nombre() }} entreprise(s) affichée(s)
   </p>
 </app-layout-pages>

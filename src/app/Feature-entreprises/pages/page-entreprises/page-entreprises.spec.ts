@@ -10,14 +10,15 @@
 //   (c'est la réponse de l'API qui est affichée, pas une liste modifiée localement) ;
 // - l'annulation : si l'utilisateur répond « Annuler », rien n'est supprimé.
 //
-// Ce qu'on ne teste PAS : les signals internes (entreprises.value()…), le nom des méthodes ou
-// l'appel à reload(). On observe uniquement l'écran et les requêtes HTTP qui sortent.
+// Ce qu'on ne teste PAS : les signals du store (store.entreprises()…) ni le nom de ses méthodes.
+// On observe uniquement l'écran et les requêtes HTTP qui sortent.
 //
-// Stratégie : on garde le VRAI EntreprisesService et on remplace seulement le réseau par
-// HttpTestingController. Pourquoi pas un faux service, comme pour les autres pages ? Parce que
-// lister() renvoie une ressource httpResource (un objet plein de signals : value(), hasValue(),
-// error(), reload()…) : la recréer à la main serait long et fragile. Avec le vrai service, le test
-// couvre tout le trajet page → service → requête HTTP, et on choisit les réponses de l'API.
+// Stratégie : on garde le VRAI EntreprisesStore et le VRAI EntreprisesService, et on remplace
+// seulement le réseau par HttpTestingController. C'est un test « d'intégration » : il couvre tout
+// le trajet page → store → service → requête HTTP, et on choisit les réponses de l'API.
+// Les autres pages, elles, remplacent le store par un faux (test de la page seule). Ici, on veut
+// justement vérifier que la liste affichée est bien celle que l'API renvoie après chaque action.
+// (Le store est providedIn: 'root' : TestBed en recrée un neuf pour chaque test.)
 // =================================================================================================
 
 // ComponentFixture : l'enveloppe de test autour du composant (accès au DOM, whenStable…).
@@ -75,14 +76,14 @@ describe('PageEntreprises', () => {
     }).compileComponents();
 
     httpTesting = TestBed.inject(HttpTestingController);
-    // createComponent : crée la page ; son constructeur s'exécute (la ressource est créée).
+    // createComponent : crée la page ; son constructeur s'exécute et appelle store.charger() :
+    // la requête GET part tout de suite vers le faux backend.
     fixture = TestBed.createComponent(PageEntreprises);
     element = fixture.nativeElement;
-    // PIÈGE avec httpResource : on n'appelle PAS fixture.whenStable() ici. La requête GET de la
-    // ressource reste en attente tant que le test n'y a pas répondu, et Angular considère qu'il a
-    // encore du travail : whenStable() attendrait indéfiniment (le test bloquerait).
-    // TestBed.tick() lance un cycle de détection des changements : la page s'affiche (état
-    // « Chargement… ») et la requête GET part vers le faux backend.
+    // PIÈGE : on n'appelle PAS fixture.whenStable() ici. Une requête HttpClient en attente compte
+    // comme du travail en cours pour Angular : whenStable() attendrait la réponse, que personne ne
+    // donne (le test bloquerait). TestBed.tick() lance seulement un cycle de détection des
+    // changements : la page s'affiche dans l'état « Chargement… ».
     TestBed.tick();
   });
 
@@ -248,10 +249,11 @@ describe('PageEntreprises', () => {
       bouton('Supprimer TechVision')?.click();
       const suppression = httpTesting.expectOne(`${URL_ENTREPRISES}/1`);
       suppression.flush(null);
-      // La page attend (await) la fin du DELETE avant d'appeler reload() : on laisse cette
-      // promesse se terminer. PAS de whenStable() ici : le nouveau GET va rester en attente.
+      // Le store attend (await) la fin du DELETE avant de relire la liste : on laisse cette
+      // promesse se terminer, ce qui fait partir le nouveau GET. PAS de whenStable() ici : ce GET
+      // reste en attente tant qu'on n'y a pas répondu.
       await laisserFinirLesPromesses();
-      // TestBed.tick() fait partir le GET relancé par la ressource.
+      // TestBed.tick() met l'écran à jour (sans attendre le GET).
       TestBed.tick();
       // Act 2 : l'API renvoie la liste à jour (TechVision n'y est plus).
       await repondreALaListe([entreprises[1]]);
