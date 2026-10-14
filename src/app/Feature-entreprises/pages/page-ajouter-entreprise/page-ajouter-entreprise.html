@@ -1,0 +1,22 @@
+<div class="container py-4">
+  <div class="card shadow-sm mx-auto" style="max-width: 40rem">
+    <div class="card-header bg-body p-4">
+      <p class="text-secondary mb-1">Portefeuille commercial</p>
+      <h1 class="h2 fw-bold mb-0">Ajouter une entreprise</h1>
+    </div>
+
+    <div class="card-body p-4">
+      @if (hasError()) {
+        <div class="alert alert-danger" role="alert">
+          L'entreprise n'a pas pu être ajoutée. Réessayez plus tard.
+        </div>
+      }
+
+      <app-form-entreprise libelleValider="Ajouter" (valider)="ajouter($event)" />
+    </div>
+
+    <div class="card-footer bg-body px-4 py-3">
+      <a routerLink="/entreprises" class="link-secondary">Retour à la liste des entreprises</a>
+    </div>
+  </div>
+</div>

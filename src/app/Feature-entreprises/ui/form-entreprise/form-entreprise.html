@@ -1,0 +1,92 @@
+@let nom = formulaire.nom();
+@let secteur = formulaire.secteur();
+@let telephone = formulaire.telephone();
+@let isNomInvalide = nom.touched() && nom.invalid();
+@let isSecteurInvalide = secteur.touched() && secteur.invalid();
+@let isTelephoneInvalide = telephone.touched() && telephone.invalid();
+
+<form novalidate (submit)="soumettre($event)">
+  <p class="small text-secondary">
+    Les champs marqués d'un <span aria-hidden="true">*</span> sont obligatoires.
+  </p>
+
+  <div class="mb-3">
+    <label for="entreprise-nom" class="form-label fw-semibold">
+      Nom <span class="text-danger" aria-hidden="true">*</span>
+    </label>
+    <input
+      id="entreprise-nom"
+      type="text"
+      class="form-control"
+      autocomplete="organization"
+      aria-required="true"
+      [formField]="formulaire.nom"
+      [class.is-invalid]="isNomInvalide"
+      [attr.aria-invalid]="isNomInvalide"
+      [attr.aria-describedby]="isNomInvalide ? 'entreprise-nom-erreur' : null"
+    />
+    @if (isNomInvalide) {
+      <div id="entreprise-nom-erreur" class="invalid-feedback">
+        @for (erreur of nom.errors(); track erreur.kind) {
+          <div>{{ erreur.message }}</div>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="mb-3">
+    <label for="entreprise-secteur" class="form-label fw-semibold">Secteur</label>
+    <input
+      id="entreprise-secteur"
+      type="text"
+      class="form-control"
+      [formField]="formulaire.secteur"
+      [class.is-invalid]="isSecteurInvalide"
+      [attr.aria-invalid]="isSecteurInvalide"
+      [attr.aria-describedby]="isSecteurInvalide ? 'entreprise-secteur-erreur' : null"
+    />
+    @if (isSecteurInvalide) {
+      <div id="entreprise-secteur-erreur" class="invalid-feedback">
+        @for (erreur of secteur.errors(); track erreur.kind) {
+          <div>{{ erreur.message }}</div>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="mb-3">
+    <label for="entreprise-adresse" class="form-label fw-semibold">Adresse</label>
+    <input
+      id="entreprise-adresse"
+      type="text"
+      class="form-control"
+      autocomplete="street-address"
+      [formField]="formulaire.adresse"
+    />
+  </div>
+
+  <div class="mb-4">
+    <label for="entreprise-telephone" class="form-label fw-semibold">Téléphone</label>
+    <input
+      id="entreprise-telephone"
+      type="tel"
+      class="form-control"
+      autocomplete="tel"
+      [formField]="formulaire.telephone"
+      [class.is-invalid]="isTelephoneInvalide"
+      [attr.aria-invalid]="isTelephoneInvalide"
+      [attr.aria-describedby]="isTelephoneInvalide ? 'entreprise-telephone-erreur' : null"
+    />
+    @if (isTelephoneInvalide) {
+      <div id="entreprise-telephone-erreur" class="invalid-feedback">
+        @for (erreur of telephone.errors(); track erreur.kind) {
+          <div>{{ erreur.message }}</div>
+        }
+      </div>
+    }
+  </div>
+
+  <button type="submit" class="btn btn-primary rounded-pill fw-semibold px-4">
+    {{ libelleValider() }}
+  </button>
+</form>

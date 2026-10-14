@@ -27,6 +27,7 @@ Modèle de notion, à recopier :
 2. [Le routing](#2-le-routing)
 3. [Les composants](#3-les-composants)
 4. [HTTP et services](#4-http-et-services)
+5. [Formulaires](#5-formulaires)
 
 ## 1. Démarrer une application Angular 22
 
@@ -1444,3 +1445,180 @@ it("affiche la liste de l'API, même si un autre utilisateur l'a changée entre-
 - [RxJS : firstValueFrom](https://rxjs.dev/api/index/function/firstValueFrom)
 - [httpResource (`reload()`)](https://angular.dev/guide/http/http-resource)
 - [MDN : async / await](https://developer.mozilla.org/fr/docs/Learn_web_development/Extensions/Async_JS/Promises)
+
+## 5. Formulaires
+
+### 5.1 Un premier formulaire en Signal Forms
+
+**En bref** : avec les Signal Forms (`@angular/forms/signals`), le formulaire est construit à partir d'un **signal** qui contient les données. `form(modele)` crée le formulaire, et la directive `FormField` relie chaque `<input>` à un champ, dans les deux sens.
+
+**Explication** :
+- **Le modèle est la source de vérité** : un `signal` (ici un `linkedSignal`) qui contient l'objet du formulaire. Taper dans un champ met à jour le modèle, et changer le modèle met à jour les champs. On lit toutes les valeurs avec `modele()`.
+- **`form(modele)`** crée un arbre de champs qui suit la forme de l'objet : `formulaire.nom`, `formulaire.secteur`… On le crée à l'initialisation d'une propriété (contexte d'injection).
+- **`[formField]="formulaire.nom"`** sur l'`<input>` fait la liaison. On importe la directive `FormField` dans le composant. Pas de `formControlName` ni de `FormBuilder`.
+- **Comparaison avec le formulaire réactif de la connexion (4.4)** : là-bas, les valeurs vivent dans des `FormControl` qu'on lit avec `getRawValue()`. Ici, elles vivent dans un simple signal typé.
+- **Un formulaire pour l'ajout et la modification** : le composant dumb reçoit une entreprise facultative en `input`. `linkedSignal` recalcule le modèle à partir de cet input chaque fois qu'il change : vide pour l'ajout, prérempli pour la modification, même si l'entreprise arrive après le chargement. Le modèle reste modifiable par l'utilisateur.
+- **Des chaînes partout** : un champ vide vaut `''`, pas `undefined`. On type donc le modèle avec `Required<EntrepriseInput>` (tous les champs obligatoires), et on part d'un objet vide complété par l'entreprise reçue (`{ ...ENTREPRISE_VIDE, ...this.entreprise() }`).
+- **Soumission, au plus simple** : `(submit)` sur le `<form>`, `event.preventDefault()` pour éviter le rechargement de la page, et le composant émet `modele()` par un `output`. C'est la page smart qui appelle le service. La validation est ajoutée en 5.2.
+- **Accessibilité** : chaque champ a son `<label for>`, un `id` unique (préfixé `entreprise-`) et un `autocomplete` adapté (`organization`, `street-address`, `tel`).
+- **Le piège** : oublier d'importer `FormField`. Le template compile alors une liaison `[formField]` inconnue, et le champ n'est relié à rien.
+- **Statut de l'API** : les Signal Forms sont récents (Angular v21+, marqués « New » dans la doc). Vérifier sur angular.dev si l'API est encore expérimentale dans la version utilisée.
+
+**Dans notre appli** (`src/app/Feature-entreprises/ui/form-entreprise/form-entreprise.ts`) :
+
+```ts
+// Tous les champs en chaîne : un champ de formulaire vide vaut '' (et non undefined).
+type ModeleEntreprise = Required<EntrepriseInput>;
+
+const ENTREPRISE_VIDE: ModeleEntreprise = { nom: '', secteur: '', adresse: '', telephone: '' };
+
+export class FormEntreprise {
+  // Vide pour un ajout, préremplie pour une modification.
+  readonly entreprise = input<EntrepriseInput>();
+  readonly libelleValider = input('Enregistrer');
+
+  readonly valider = output<EntrepriseInput>();
+
+  // Le modèle repart de l'entreprise reçue à chaque fois qu'elle change (ex. chargée après coup).
+  protected readonly modele = linkedSignal<ModeleEntreprise>(() => ({
+    ...ENTREPRISE_VIDE,
+    ...this.entreprise(),
+  }));
+
+  // Le modèle reste la source de vérité : les champs le lisent et l'écrivent.
+  protected readonly formulaire = form(this.modele);
+
+  protected soumettre(event: Event): void {
+    event.preventDefault();
+    this.valider.emit(this.modele());
+  }
+}
+```
+
+(`form-entreprise.html`, extrait) :
+
+```html
+<form novalidate (submit)="soumettre($event)">
+  <label for="entreprise-nom" class="form-label fw-semibold">Nom</label>
+  <input
+    id="entreprise-nom"
+    type="text"
+    class="form-control"
+    autocomplete="organization"
+    [formField]="formulaire.nom"
+  />
+  …
+  <button type="submit" class="btn btn-primary rounded-pill fw-semibold px-4">
+    {{ libelleValider() }}
+  </button>
+</form>
+```
+
+La page d'ajout (`page-ajouter-entreprise.ts`) : elle attend la création, puis revient à la liste, qui relit l'API.
+
+```ts
+protected async ajouter(entreprise: EntrepriseInput): Promise<void> {
+  this.hasError.set(false);
+  try {
+    await this.entreprisesService.creer(entreprise);
+    await this.router.navigateByUrl(PAGE_LISTE);
+  } catch {
+    this.hasError.set(true);
+  }
+}
+```
+
+**Tester** : on remplit un champ comme un utilisateur (`input.value = …` puis `dispatchEvent(new Event('input'))`), on attend `whenStable()`, on clique sur le bouton d'envoi et on vérifie l'`output` émis. Pour la modification, `setInput('entreprise', …)` doit préremplir les champs.
+
+**Docs officielles** :
+- [Signal Forms : vue d'ensemble](https://angular.dev/guide/forms/signals/overview)
+- [Signal Forms : modèles de formulaire](https://angular.dev/guide/forms/signals/models)
+- [Signal Forms : soumission](https://angular.dev/guide/forms/signals/form-submission)
+- [linkedSignal](https://angular.dev/guide/signals/linked-signal)
+- [MDN : attribut autocomplete](https://developer.mozilla.org/fr/docs/Web/HTML/Reference/Attributes/autocomplete)
+
+### 5.2 Valider un Signal Form et afficher les erreurs
+
+**En bref** : les règles de validation se déclarent dans un **schéma**, une fonction passée en 2e argument de `form()`. Chaque champ expose ensuite son état sous forme de signals : `touched()`, `invalid()`, `errors()`.
+
+**Explication** :
+- **Le schéma** reçoit les chemins des champs (`schema.nom`, `schema.telephone`…). On y appelle les règles intégrées : `required`, `minLength`, `maxLength`, `pattern`, `email`… Chaque règle accepte un objet `{ message }` : le message d'erreur à afficher, en français. Les limites sont des constantes nommées (`LONGUEUR_MIN_NOM`), jamais des nombres magiques.
+- **Un champ facultatif avec un format** : `pattern` sur le téléphone. Un champ vide reste valide, puisque seul `required` impose une valeur.
+- **Lire l'état d'un champ** : `formulaire.nom()` donne l'état du champ. `@let nom = formulaire.nom();` en haut du template évite de répéter l'appel. On affiche l'erreur quand le champ est **touché et invalide** : l'utilisateur ne voit pas d'erreur avant d'avoir interagi.
+- **Afficher les messages** : `errors()` renvoie la liste des règles non respectées, chacune avec un `kind` (`required`, `minLength`…) et le `message` défini dans le schéma. On les parcourt avec `@for (erreur of nom.errors(); track erreur.kind)`.
+- **Accessibilité** : `is-invalid` (style Bootstrap), `aria-invalid="true"` et `aria-describedby` vers le bloc d'erreur, pour que le lecteur d'écran lise le message en arrivant sur le champ. Le champ obligatoire a un astérisque **décoratif** (`aria-hidden`), expliqué en toutes lettres en haut du formulaire, et `aria-required="true"`. L'information ne passe pas par la couleur seule.
+- **Soumettre avec `submit()`** : `submit(this.formulaire, async () => { … })` marque tous les champs comme touchés, donc toutes les erreurs s'affichent d'un coup. Il **n'exécute l'action que si toutes les règles sont respectées** : le composant n'émet jamais de données invalides.
+- **Le piège** : dans le schéma, chaque règle est une **instruction** à part, terminée par un point-virgule, et le minimum de `minLength` est obligatoire. Écrire `required(schema.nom), minLength(schema.nom)` (une virgule, sans minimum) ne compile pas.
+- **Tester** : une erreur doit apparaître seulement après interaction (`blur` ou clic sur « valider »). On vérifie le message relié au champ par `aria-describedby`, `aria-invalid`, et que rien n'est émis quand le formulaire est invalide. Comme `submit()` lance son action de façon asynchrone, on attend après le clic.
+
+**Dans notre appli** (`src/app/Feature-entreprises/ui/form-entreprise/form-entreprise.ts`) :
+
+```ts
+const LONGUEUR_MIN_NOM = 2;
+const LONGUEUR_MAX_TEXTE = 100;
+// Téléphone français : 10 chiffres commençant par 0, espaces facultatifs (ex. 01 45 67 89 00).
+const FORMAT_TELEPHONE = /^0\d( ?\d{2}){4}$/;
+
+// Le modèle reste la source de vérité ; le schéma (2e argument) déclare les règles de validation.
+protected readonly formulaire = form(this.modele, (schema) => {
+  required(schema.nom, { message: 'Le nom est obligatoire.' });
+  minLength(schema.nom, LONGUEUR_MIN_NOM, {
+    message: `Le nom doit faire au moins ${LONGUEUR_MIN_NOM} caractères.`,
+  });
+  maxLength(schema.nom, LONGUEUR_MAX_TEXTE, {
+    message: `Le nom doit faire au plus ${LONGUEUR_MAX_TEXTE} caractères.`,
+  });
+  maxLength(schema.secteur, LONGUEUR_MAX_TEXTE, {
+    message: `Le secteur doit faire au plus ${LONGUEUR_MAX_TEXTE} caractères.`,
+  });
+  pattern(schema.telephone, FORMAT_TELEPHONE, {
+    message: 'Saisissez un numéro à 10 chiffres, par exemple 01 45 67 89 00.',
+  });
+});
+
+// submit() marque les champs comme touchés (les erreurs s'affichent)
+// et n'exécute l'action que si toutes les règles sont respectées.
+protected soumettre(event: Event): void {
+  event.preventDefault();
+  submit(this.formulaire, async () => {
+    this.valider.emit(this.modele());
+  });
+}
+```
+
+(`form-entreprise.html`, le champ « Nom ») :
+
+```html
+@let nom = formulaire.nom();
+@let isNomInvalide = nom.touched() && nom.invalid();
+
+<label for="entreprise-nom" class="form-label fw-semibold">
+  Nom <span class="text-danger" aria-hidden="true">*</span>
+</label>
+<input
+  id="entreprise-nom"
+  type="text"
+  class="form-control"
+  autocomplete="organization"
+  aria-required="true"
+  [formField]="formulaire.nom"
+  [class.is-invalid]="isNomInvalide"
+  [attr.aria-invalid]="isNomInvalide"
+  [attr.aria-describedby]="isNomInvalide ? 'entreprise-nom-erreur' : null"
+/>
+@if (isNomInvalide) {
+  <div id="entreprise-nom-erreur" class="invalid-feedback">
+    @for (erreur of nom.errors(); track erreur.kind) {
+      <div>{{ erreur.message }}</div>
+    }
+  </div>
+}
+```
+
+**Comparaison avec le formulaire réactif (4.4)** : `Validators.required` dans `FormBuilder` devient `required(schema.nom, { message })` dans le schéma. Les messages sont déclarés avec la règle au lieu d'être écrits dans le template. `email.invalid && email.touched` devient `nom.invalid() && nom.touched()` (des signals). `markAllAsTouched()` est fait par `submit()`.
+
+**Docs officielles** :
+- [Signal Forms : validation](https://angular.dev/guide/forms/signals/validation)
+- [Signal Forms : soumission (`submit`)](https://angular.dev/guide/forms/signals/form-submission)
+- [Bootstrap : validation des formulaires](https://getbootstrap.com/docs/5.3/forms/validation/)
+- [WAI : identifier les erreurs de saisie](https://www.w3.org/WAI/WCAG22/Understanding/error-identification.html)
